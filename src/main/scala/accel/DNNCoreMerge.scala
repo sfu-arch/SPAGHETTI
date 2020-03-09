@@ -23,6 +23,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   val cycle_count = new Counter(2000)
 
 
+
   val S = new FType(8, 24)
   val shape = new FPvecN(1, S, 0)
 
