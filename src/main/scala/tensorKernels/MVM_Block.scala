@@ -6,7 +6,7 @@ import chisel3.util._
 import config._
 import dnn.memory._
 import dnn.types.{OperatorDot, OperatorReduction}
-import dnnnode.{DGEMVNode, Mac1D, PWShapeTransformer}
+import dnnnode.{DGEMVNode, Mac1D, ShapeTransformer}
 import interfaces.ControlBundle
 import node.Shapes
 import shell._
@@ -57,7 +57,7 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
   val inDMA1 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(vecShape))
   val inDMA2 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(vecShape))
 
-  val ShapeTransformer = Module(new PWShapeTransformer(NumRows = 2, 1, 20, memTensorType)(vecShape))
+  val ShapeTransformer = Module(new ShapeTransformer(NumRows = 2, 1, 20, memTensorType)(vecShape))
 
 
   val Merger = Module(new MergeSort(maxStreamLen = 16, ID = 1, rowBased = true))

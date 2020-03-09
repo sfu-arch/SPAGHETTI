@@ -24,6 +24,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
 
 
+
   val S = new FType(8, 24)
   val shape = new FPvecN(1, S, 0)
 

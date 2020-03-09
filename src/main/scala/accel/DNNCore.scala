@@ -25,15 +25,9 @@ import chisel3.{when, _}
 import chisel3.util._
 import config._
 import control.BasicBlockNoMaskNode
-import dnn.memory.{ReadTensorController, TensorLoad, TensorMaster, TensorStore, WriteTensorController, inDMA_act, inDMA_wgt, outDMA_act}
-import interfaces.{ControlBundle, CustomDataBundle, DataBundle}
-import junctions.SplitCallNew
 import node.{FPvecN, FXmatNxN, FXvecN, UnTypStore, matNxN, vecN}
 import shell._
-import dnn.memory.ISA._
-import dnn_layers.{DW_Block, DW_PW_Block, PDP_Block, PW_Block}
-import dnnnode.{Mac2dTensor, ShapeTransformer, StoreQueue, TLoad, TStore, WeightShapeTransformer}
-import firrtl.transforms.DontTouchAnnotation
+import dnn_layers.{PW_Block}
 
 
 /** DNNCore.

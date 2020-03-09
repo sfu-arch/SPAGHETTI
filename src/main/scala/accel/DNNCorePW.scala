@@ -4,7 +4,7 @@ import FPU.FType
 import chisel3.util._
 import chisel3.{when, _}
 import config._
-import dnn_layers.{PDP_Block, PW_Block}
+import dnn_layers.{PW_Block}
 import node.{FPvecN, matNxN, vecN}
 import shell._
 

@@ -6,7 +6,7 @@ import chisel3.util._
 import config._
 import dnn.memory._
 import dnn.types.{OperatorDot, OperatorReduction}
-import dnnnode.{Mac1D, Mac2dTensor, MacPW, PWShapeTransformer, TLoad}
+import dnnnode.{Mac1D, ShapeTransformer}
 import interfaces.ControlBundle
 import node.{Shapes, vecN}
 import shell._
@@ -69,7 +69,7 @@ class PW_Block[L <: Shapes, K <: Shapes : OperatorDot : OperatorReduction]
 
   val M_Brick_in =  Module(new inDMA_act_HWC(Hx, NumOuts = 1, memTensorType)(memShape))
 
-  val I_Brick = Module(new PWShapeTransformer(Hx, Fx, bufSize = 20, memTensorType)(CxShape))
+  val I_Brick = Module(new ShapeTransformer(Hx, Fx, bufSize = 20, memTensorType)(CxShape))
 
   val L_Brick = for (i <- 0 until Fx) yield {
     val mac1d = Module(new Mac1D(Hx, ChBatch, wgtType)(CxShape))

@@ -1,98 +1,114 @@
+
 package dnnnode
 
-import Chisel.Enum
+import chisel3._
 import chisel3.util._
-import chisel3.{Flipped, Module, UInt, _}
-import config.{Parameters, XLEN}
-import dnn.types.{OperatorDot, OperatorReduction}
-import muxes._
-import interfaces.CustomDataBundle
-import node.{HandShakingIONPS, HandShakingNPS, Shapes, matNxN, vecN}
+import config._
+import dnn.memory.{TensorClient, TensorMaster, TensorParams}
+import interfaces.{CustomDataBundle, DataBundle}
+import node.Shapes
+import shell._
+//import vta.util.config._
+import dnn.memory.ISA._
 
-class ShapeTransformerIO[gen <: vecN, gen2 <: Shapes](NumIns: Int, NumOuts: Int)(shapeIn: => gen)(shapeOut: => gen2)(implicit p: Parameters)
-  extends HandShakingIONPS(NumOuts)(new CustomDataBundle(UInt(shapeOut.getWidth.W))) {
-  val in = Vec(NumIns, Flipped(Decoupled(new CustomDataBundle(UInt(shapeIn.getWidth.W)))))
 
-  override def cloneType = new ShapeTransformerIO(NumIns, NumOuts)(shapeIn)(shapeOut).asInstanceOf[this.type]
+/** TensorLoad.
+  *
+  * Load 1D and 2D tensors from main memory (DRAM) to input/weight
+  * scratchpads (SRAM). Also, there is support for zero padding, while
+  * doing the load. Zero-padding works on the y and x axis, and it is
+  * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
+  * handling the way tensors are stored on the scratchpads.
+  */
+class ShapeTransformerIO[gen <: Shapes](NumRows: Int, NumOuts: Int, memTensorType: String = "none")(macShape: => gen)(implicit val p: Parameters)
+  extends Module {
+  val tp = new TensorParams(memTensorType)
+  val mp = p(ShellKey).memParams
+  val io = IO(new Bundle {
+    val start = Input(Bool())
+    val done = Output(Bool())
+    val rowWidth = Input(UInt(mp.addrBits.W))
+    val depth = Input(UInt(mp.addrBits.W))
+    val tensor = Vec(NumRows, new TensorMaster(memTensorType))
+    val Out = Vec(NumRows, Vec(NumOuts, Decoupled(new CustomDataBundle(UInt(macShape.getWidth.W)))))
+  })
 }
 
-class ShapeTransformer[L <: vecN, K <: Shapes](NumIns: Int, NumOuts: Int, ID: Int)(shapeIn: => L)(shapeOut: => K)(implicit p: Parameters)
-  extends HandShakingNPS(NumOuts, ID)(new CustomDataBundle(UInt(shapeOut.getWidth.W)))(p) {
-  override lazy val io = IO(new ShapeTransformerIO(NumIns, NumOuts)(shapeIn)(shapeOut))
+class ShapeTransformer[L <: Shapes](NumRows: Int, NumOuts: Int, bufSize: Int, memTensorType: String = "none")
+                                   (macShape: => L)(implicit p: Parameters)
+  extends ShapeTransformerIO(NumRows, NumOuts, memTensorType)(macShape)(p) {
+
+  val wgtNum = io.rowWidth * io.depth / macShape.getLength().U
+  val memTensorRows = Mux(io.rowWidth * io.depth % tp.tensorWidth.U === 0.U,
+    io.rowWidth * io.depth / tp.tensorWidth.U,
+    (io.rowWidth * io.depth / tp.tensorWidth.U) + 1.U)
+
+  val readTensorCnt = Counter(tp.memDepth)
+  val wgtOutCnt = Counter(tp.memDepth)
+
+  val sIdle :: sRead :: sClear :: Nil = Enum(3)
+  val state = RegInit(sIdle)
 
 
-  /*===========================================*
-   *            Registers                      *
-   *===========================================*/
-  val dataIn_R = RegInit(VecInit(Seq.fill(NumIns)(CustomDataBundle.default(0.U(shapeIn.getWidth.W)))))
-  val dataIn_valid_R = RegInit(VecInit(Seq.fill(NumIns)(false.B)))
-  val dataIn_Wire = Wire(Vec(shapeIn.N, Vec (NumIns, UInt(xlen.W))))
+  val queue = for (i <- 0 until NumRows) yield {
+    val buffer = Module(new MIMOQueue(UInt(p(XLEN).W), bufSize, tp.tensorWidth, macShape.getLength()))
+    buffer
+  }
 
-  val input_data = dataIn_R.map(_.data.asUInt())
+  val validReg = RegInit(false.B)
+
+  for (i <- 0 until NumRows) {
+    queue(i).io.clear := false.B
+    queue(i).io.enq.bits := io.tensor(i).rd.data.bits.asTypeOf(queue(i).io.enq.bits)
+    queue(i).io.enq.valid := queue(i).io.enq.ready && validReg === sRead//io.tensor(i).rd.data.valid
+    io.tensor(i).rd.idx.valid := queue(i).io.enq.ready && state === sRead
+    io.tensor(i).rd.idx.bits := readTensorCnt.value
+    io.tensor(i).wr <> DontCare
+
+    for (j <- 0 until NumOuts){
+      io.Out(i)(j).bits.data := queue(i).io.deq.bits.asUInt()
+      io.Out(i)(j).bits.valid := true.B
+      io.Out(i)(j).bits.predicate := true.B
+      io.Out(i)(j).bits.taskID := 0.U
+
+      io.Out(i)(j).valid := queue(i).io.deq.valid
+    }
+    queue(i).io.deq.ready := io.Out(i).map(_.ready).reduceLeft(_&&_)
+  }
+
+  io.done := false.B
+
+//  when(queue.map(_.io.enq.fire()).reduceLeft(_&&_)) {readTensorCnt.inc()}
+  when(queue.map(_.io.enq.ready).reduceLeft(_&&_) && state  === sRead) {readTensorCnt.inc()}
+
+  when(queue.map(_.io.deq.fire()).reduceLeft(_&&_)) {wgtOutCnt.inc()}
+//  when(wgtOutCnt.value === wgtNum) {wgtOutCnt.value := 0.U}
 
 
-  for (i <- 0 until shapeIn.N) {
-    for (j <- 0 until NumIns) {
-      val index = ((i + 1) * xlen) - 1
-      dataIn_Wire(i)(j) := input_data(j)(index, i * xlen)
+
+  switch(state){
+    is(sIdle){
+      when(io.start){
+        state := sRead
+      }
+    }
+    is(sRead){
+      validReg := true.B
+      when(readTensorCnt.value === memTensorRows && queue.map(_.io.enq.ready).reduceLeft(_&&_)){
+        validReg := false.B
+        readTensorCnt.value := 0.U
+        state := sClear
+      }
+    }
+    is(sClear){
+      when(wgtOutCnt.value === wgtNum - 1.U){
+        wgtOutCnt.value := 0.U
+        queue.foreach(_.io.clear := true.B)
+        io.done := true.B
+        state := sIdle
+      }
     }
   }
 
 
-  val buffer = Module(new CustomQueue(new CustomDataBundle(UInt((NumIns * xlen).W)), 40, NumIns))
-
-  val mux = Module(new Mux(new CustomDataBundle(UInt((NumIns * xlen).W)), shapeIn.N))
-  val countOn = RegInit(init = false.B)
-  val cnt = Counter(shapeIn.N)
-
-  mux.io.sel := cnt.value
-  mux.io.en := true.B
-  for (i <- 0 until shapeIn.N) {
-    mux.io.inputs(i).data := dataIn_Wire(i).asTypeOf(CustomDataBundle(UInt((NumIns * xlen).W))).data
-    mux.io.inputs(i).valid := dataIn_R.map(_.valid).reduceLeft(_ && _)
-    mux.io.inputs(i).predicate := dataIn_R.map(_.valid).reduceLeft(_ && _)
-    mux.io.inputs(i).taskID := dataIn_R.map(_.taskID).reduceLeft(_ | _)
-  }
-
-  buffer.io.enq.bits <> mux.io.output
-  buffer.io.enq.valid := dataIn_valid_R.reduceLeft(_ && _)
-  buffer.io.enq.bits.predicate := true.B
-
-  val s_idle :: s_BufferWrite :: s_Transfer :: s_Finish :: Nil = Enum(4)
-  val state = RegInit(s_idle)
-
-  /*===============================================*
-   *            Latch inputs. Wire up left       *
-   *===============================================*/
-
-  for (i <- 0 until NumIns) {
-    io.in(i).ready := ~dataIn_valid_R(i)
-    when(io.in(i).fire()) {
-      dataIn_R(i).data := io.in(i).bits.data
-      dataIn_valid_R(i) := true.B
-    }
-  }
-
-  for (i <- 0 until NumOuts) {
-    io.Out(i).valid := buffer.io.Out.valid //&& (buffer.io.count > 1.U)
-    io.Out(i).bits.data := VecInit(buffer.io.Out.bits.map(_.data.asUInt())).asUInt()
-    io.Out(i).bits.valid := buffer.io.Out.valid
-    io.Out(i).bits.taskID := 0.U
-    io.Out(i).bits.predicate := true.B
-  }
-
-  buffer.io.deq.ready := io.Out.map(_.ready).reduceLeft(_ && _) & buffer.io.Out.valid
-
-  when (dataIn_valid_R.reduceLeft(_ && _) && buffer.io.enq.ready) {
-    cnt.inc()
-  }
-
-  when (cnt.value === (shapeIn.N - 1).U) {
-    dataIn_R.foreach(_ := CustomDataBundle.default(0.U(shapeIn.getWidth.W)))
-    dataIn_valid_R.foreach(_ := false.B)
-  }
-
-
 }
-
-
