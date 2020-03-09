@@ -21,10 +21,9 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class MVM_BlockIO(NumRows: Int, vecType: String = "none", memTensorType: String = "none")(implicit val p: Parameters)
+class MVM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tpMem = new TensorParams(memTensorType)
-  val tpVec = new TensorParams(vecType)
 
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -50,9 +49,9 @@ class MVM_BlockIO(NumRows: Int, vecType: String = "none", memTensorType: String 
 }
 
 class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
-(NumRows: Int, vecType: String = "none", memTensorType: String = "none")
+(NumRows: Int, memTensorType: String = "none")
 (vecShape: => L)(implicit p: Parameters)
-  extends MVM_BlockIO(NumRows, vecType, memTensorType)(p) {
+  extends MVM_BlockIO(NumRows, memTensorType)(p) {
 
   val inDMA1 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(vecShape))
   val inDMA2 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(vecShape))
