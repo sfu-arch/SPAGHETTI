@@ -1,0 +1,6 @@
+target/*
+project/*
+src/target/*
+.idea/*
+build/*
+
