@@ -4,11 +4,12 @@ package tensorKernels
 import chisel3._
 import chisel3.util._
 import config._
+import dnn.CooSCALNode
 import dnn.memory._
-import dnn.types.{OperatorDot, OperatorReduction}
+import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorReduction}
 import dnnnode.{DGEMVNode, Mac1D, ShapeTransformer}
 import interfaces.ControlBundle
-import node.Shapes
+import node.{Shapes, vecN}
 import shell._
 //import vta.util.config._
 
@@ -48,7 +49,7 @@ class MVM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p: 
   })
 }
 
-class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
+class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
 (NumRows: Int, memTensorType: String = "none")
 (vecShape: => L)(implicit p: Parameters)
   extends MVM_BlockIO(NumRows, memTensorType)(p) {
@@ -58,8 +59,11 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
 
   val ShapeTransformer = Module(new ShapeTransformer(NumRows = 2, 1, 20, memTensorType)(vecShape))
 
+  val shape = new vecN(2, 0, false)
+  val mul = Module(new CooSCALNode(N = 2, ID = 0, opCode = "Mul")(shape))
 
-  val Merger = Module(new MergeSort(maxStreamLen = 16, ID = 1, rowBased = true))
+
+  val merger = Module(new MergeSort(maxStreamLen = 16, ID = 1, rowBased = true))
 
   val outDMA = Module(new outDMA_act(NumRows = 1, 20, memTensorType))
 
@@ -69,7 +73,7 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
   val state = RegInit(sIdle)
 
   io.done := false.B
-  Merger.io.start := false.B
+  merger.io.start := false.B
 
   val inDMA_time = Counter(2000)
   val outDMA_time = Counter(2000)
@@ -108,8 +112,8 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
 //    outDMA.io.last(i) := Merger.io.last
 //  }
 
-  outDMA.io.last(0) := Merger.io.last
-  Merger.io.len := 5.U
+  outDMA.io.last(0) := merger.io.last
+  merger.io.len := 5.U
 //  outDMA.io.last(1) := false.B
 
   val inDMA_doneR = for (i <- 0 until 2) yield {
@@ -126,7 +130,7 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
   when(inDMA1.io.done) {inDMA_doneR(0) := true.B}
   when(inDMA2.io.done) {inDMA_doneR(1) := true.B}
 
-  outDMA.io.start := Merger.io.done
+  outDMA.io.start := merger.io.done
 
   /* ================================================================== *
     *                        loadNodes & mac1Ds                         *
@@ -134,19 +138,40 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
 
 //  Merger.io.in1 <> ShapeTransformer.io.Out(0)(0)
   //  Merger.io.in2 <> ShapeTransformer.io.Out(1)(0)
-  Merger.io.in.valid := ShapeTransformer.io.Out(0)(0).valid
-  ShapeTransformer.io.Out(0)(0).ready := Merger.io.in.ready
-  Merger.io.in.bits.data := ShapeTransformer.io.Out(0)(0).bits.data
-  Merger.io.in.bits.row := 0.U
-  Merger.io.in.bits.col := 0.U
-  Merger.io.in.bits.valid := true.B
+  mul.io.scal.bits.data := ShapeTransformer.io.Out(0)(0).bits.data
+  mul.io.scal.bits.row := 0.U
+  mul.io.scal.bits.col := 0.U
+  mul.io.scal.bits.valid := true.B
+  mul.io.scal.valid := ShapeTransformer.io.Out(0)(0).valid
 
-//  Merger.io.in2.valid := ShapeTransformer.io.Out(1)(0).valid
-  ShapeTransformer.io.Out(1)(0).ready := Merger.io.in.ready //Merger.io.in2.ready
-//  Merger.io.in2.bits.data := ShapeTransformer.io.Out(1)(0).bits.data
-//  Merger.io.in2.bits.row := 0.U
-//  Merger.io.in2.bits.col := 0.U
-//  Merger.io.in2.bits.valid := true.B
+  for (i <- 0 until 2) {
+    mul.io.vec(i).bits.data := ShapeTransformer.io.Out(0)(0).bits.data
+    mul.io.vec(i).bits.row := 0.U
+    mul.io.vec(i).bits.col := 0.U
+    mul.io.vec(i).bits.valid := true.B
+    mul.io.vec(i).valid := ShapeTransformer.io.Out(0)(0).valid
+
+    mul.io.out(i).ready := merger.io.in.ready
+
+  }
+
+  ShapeTransformer.io.Out(0)(0).ready := mul.io.scal.ready
+
+  merger.io.in.valid := mul.io.out(0).valid
+  merger.io.in.bits.data := mul.io.out(0).bits.data
+  merger.io.in.bits.row := 0.U
+  merger.io.in.bits.col := 0.U
+  merger.io.in.bits.valid := true.B
+
+
+  ShapeTransformer.io.Out(1)(0).ready := mul.io.scal.ready //Merger.io.in2.ready
+
+//  merger.io.in.valid := ShapeTransformer.io.Out(0)(0).valid
+//  ShapeTransformer.io.Out(0)(0).ready := merger.io.in.ready
+//  merger.io.in.bits.data := ShapeTransformer.io.Out(0)(0).bits.data
+//  merger.io.in.bits.row := 0.U
+//  merger.io.in.bits.col := 0.U
+//  merger.io.in.bits.valid := true.B
 
 
   outDMA.io.baddr := io.outBaseAddr
@@ -154,9 +179,9 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
 
 //  outDMA.io.in(0) <> Merger.io.out1
 //  outDMA.io.in(1) <> Merger.io.out2
-  Merger.io.out.ready := outDMA.io.in(0).ready
-  outDMA.io.in(0).valid := Merger.io.out.valid
-  outDMA.io.in(0).bits.data := Merger.io.out.bits.data
+  merger.io.out.ready := outDMA.io.in(0).ready
+  outDMA.io.in(0).valid := merger.io.out.valid
+  outDMA.io.in(0).bits.data := merger.io.out.bits.data
   outDMA.io.in(0).bits.predicate := true.B
   outDMA.io.in(0).bits.valid := true.B
   outDMA.io.in(0).bits.taskID := 0.U
@@ -194,7 +219,7 @@ class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction]
     is(sInRead) {
       when(inDMA_doneR.reduceLeft(_ && _)){
         state := sExec
-        Merger.io.start := true.B
+        merger.io.start := true.B
       }
     }
     is(sExec){

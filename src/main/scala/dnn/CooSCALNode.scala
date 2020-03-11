@@ -5,8 +5,7 @@ import chisel3.{Bundle, Flipped, Module, Output, RegInit, UInt, printf, when, _}
 import config.{Parameters, XLEN}
 import dnn.types.{OperatorCooSCAL, OperatorSCAL}
 import interfaces.{CooDataBundle, CustomDataBundle}
-//import javafx.scene.chart.PieChart.Data
-import node.{HandShakingIONPS, HandShakingNPS, Shapes}
+import node.{Shapes}
 
 class CooSCALFU[L <: Shapes : OperatorCooSCAL](left: => L, lanes: Int, opCode: String)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
@@ -37,16 +36,8 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
   extends CooSCALIO(N = N)(left)(p) {
 
   require(left.getLength() == N, "shape does not match with number of multipliers")
-  /*===========================================*
- *            Registers                      *
- *===========================================*/
 
-  /*==========================================*
-   *           Predicate Evaluation           *
-   *==========================================*/
-
-
-  /*===============================================*
+ /*===============================================*
    *            Latch inputs. Wire up left       *
    *===============================================*/
   val FU = Module(new CooSCALFU(left, lanes = N, opCode))
@@ -56,64 +47,16 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
   FU.io.a.valid := io.vec.map(_.valid).reduceLeft(_&&_)
   FU.io.b.valid := io.scal.valid
 
+  io.scal.ready := io.out.map(_.ready).reduceLeft(_&&_)
+  io.vec.map(_.ready).foreach(a => a := io.out.map(_.ready).reduceLeft(_&&_))
+
 
   for (i <- 0 until N) {
-    io.out(i).bits.data := FU.io.o.bits
-    io.Out(i).bits.valid := data_R.valid
-    io.Out(i).bits.predicate := predicate
-    io.Out(i).bits.taskID := left_R.taskID | right_R.taskID | enable_R.taskID
-  }
-
-  /*============================================*
- *            ACTIONS (possibly dangerous)    *
- *============================================*/
-
-   //  This is written like this to enable FUs that are dangerous in the future.
-  // If you don't start up then no value passed into function
-
-  when(state === s_ACTIVE) {
-    when(FU.io.o.valid) {
-      ValidOut( )
-      data_R.data := (FU.io.o.bits).asTypeOf(UInt(left.getWidth.W))
-      data_R.valid := true.B
-      state := s_COMPUTE
-    }.otherwise {
-      state := s_ACTIVE
-    }
-  }
-  when((IsOutReady( )) && (state === s_COMPUTE)) {
-    left_R := CustomDataBundle.default(0.U((left.getWidth).W))
-    right_R := CustomDataBundle.default(0.U((left.getWidth).W))
-    data_R := CustomDataBundle.default(0.U((left.getWidth).W))
-    Reset( )
-    state := s_idle
-  }
-
-
-  var classname: String = (left.getClass).toString
-  var signed            = "S"
-  override val printfSigil =
-    opCode + "[" + classname.replaceAll("class node.", "") + "]_" + ID + ":"
-
-  if (log == true && (comp contains "TYPOP")) {
-    val x = RegInit(0.U(xlen.W))
-    x := x + 1.U
-
-    verb match {
-      case "high" => {
-      }
-      case "med" => {
-      }
-      case "low" => {
-        printfInfo("Cycle %d : { \"Inputs\": {\"Left\": %x, \"Right\": %x},", x, (left_R.valid), (right_R.valid))
-        printf("\"State\": {\"State\": \"%x\", \"(L,R)\": \"%x,%x\",  \"O(V,D,P)\": \"%x,%x,%x\" },",
-          state, left_R.data, right_R.data, io.Out(0).valid, data_R.data, io.Out(0).bits.predicate)
-        printf("\"Outputs\": {\"Out\": %x}", io.Out(0).fire( ))
-        printf("}")
-      }
-      case everythingElse => {
-      }
-    }
+    io.out(i).bits.data := FU.io.o.bits.asUInt()(p(XLEN) * (i + 1) - 1, p(XLEN) * i)
+    io.out(i).valid := FU.io.o.valid
+    io.out(i).bits.row := io.vec(i).bits.row
+    io.out(i).bits.col := io.scal.bits.col
+    io.out(i).bits.valid := true.B
   }
 }
 

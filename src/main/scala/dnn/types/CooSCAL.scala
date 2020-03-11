@@ -5,9 +5,6 @@ import chisel3._
 import chisel3.iotesters.{ChiselFlatSpec, Driver, OrderedDecoupledHWIOTester, PeekPokeTester}
 import chisel3.Module
 import chisel3.experimental.FixedPoint
-import chisel3.testers._
-import chisel3.util._
-import org.scalatest.{FlatSpec, Matchers}
 import config._
 import interfaces._
 import node._
@@ -26,12 +23,15 @@ object OperatorCooSCAL {
       val FU      = Module(new NCycle_CooSCAL(l.data(0)(0), flatvec.length, lanes = flatvec.length, opcode))
       flatvec zip FU.io.input_vec foreach { case (a, b) => b := a }
       FU.io.scalar := r
+      val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
         data(i.U) := FU.io.output(i)
       }
+
       x.fromVecUInt(data)
-      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+//      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+      (x, valid)
     }
   }
 
@@ -42,12 +42,14 @@ object OperatorCooSCAL {
       val FU      = Module(new NCycle_CooSCAL(l.data(0), flatvec.length, lanes = flatvec.length, opcode))
       flatvec zip FU.io.input_vec foreach { case (a, b) => b := a }
       FU.io.scalar := r
+      val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
         data(i.U) := FU.io.output(i)
       }
       x.fromVecUInt(data)
-      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+//      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+      (x, valid)
     }
   }
 
@@ -63,12 +65,14 @@ object OperatorCooSCAL {
       }
       flatvec zip FU.io.input_vec foreach { case (a, b) => b := a }
       FU.io.scalar := r
+      val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
         data(i.U) := FU.io.output(i)
       }
       x.fromVecUInt(data)
-      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+//      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+      (x, valid)
     }
   }
 
@@ -83,12 +87,14 @@ object OperatorCooSCAL {
       }
       flatvec zip FU.io.input_vec foreach { case (a, b) => b := a }
       FU.io.scalar := r
+      val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
         data(i.U) := FU.io.output(i)
       }
       x.fromVecUInt(data)
-      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+//      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+      (x, valid)
     }
   }
 
@@ -99,12 +105,14 @@ object OperatorCooSCAL {
       val FU      = Module(new NCycle_CooSCAL(new FloatingPoint(l.t), flatvec.length, lanes = flatvec.length, opcode))
       flatvec zip FU.io.input_vec foreach { case (a, b) => b := a }
       FU.io.scalar := r
+      val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
         data(i.U) := FU.io.output(i)
       }
       x.fromVecUInt(data)
-      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+//      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+      (x, valid)
     }
   }
 
@@ -115,12 +123,13 @@ object OperatorCooSCAL {
       val FU      = Module(new NCycle_CooSCAL(new FloatingPoint(l.t), flatvec.length, lanes = flatvec.length, opcode))
       flatvec zip FU.io.input_vec foreach { case (a, b) => b := a }
       FU.io.scalar := r
+      val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
         data(i.U) := FU.io.output(i)
       }
       x.fromVecUInt(data)
-      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
+      (x, valid)
     }
   }
 
