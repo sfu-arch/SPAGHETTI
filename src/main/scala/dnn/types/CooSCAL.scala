@@ -26,7 +26,9 @@ object OperatorCooSCAL {
       val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
-        data(i.U) := FU.io.output(i)
+        when(start){
+          data(i.U) := FU.io.output(i)
+        }
       }
 
       x.fromVecUInt(data)
@@ -45,7 +47,9 @@ object OperatorCooSCAL {
       val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
-        data(i.U) := FU.io.output(i)
+        when(start){
+          data(i.U) := FU.io.output(i)
+        }
       }
       x.fromVecUInt(data)
 //      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
@@ -68,7 +72,9 @@ object OperatorCooSCAL {
       val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
-        data(i.U) := FU.io.output(i)
+        when(start){
+          data(i.U) := FU.io.output(i)
+        }
       }
       x.fromVecUInt(data)
 //      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
@@ -90,7 +96,9 @@ object OperatorCooSCAL {
       val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
-        data(i.U) := FU.io.output(i)
+        when(start){
+          data(i.U) := FU.io.output(i)
+        }
       }
       x.fromVecUInt(data)
 //      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
@@ -108,7 +116,9 @@ object OperatorCooSCAL {
       val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
-        data(i.U) := FU.io.output(i)
+        when(start){
+          data(i.U) := FU.io.output(i)
+        }
       }
       x.fromVecUInt(data)
 //      (x, FU.io.output.map(_.valid).reduceLeft(_&&_))
@@ -126,7 +136,9 @@ object OperatorCooSCAL {
       val valid = RegNext(start)
       val data    = Reg(Vec(flatvec.length, UInt(p(XLEN).W)))
       for (i <- 0 until lanes) {
-        data(i.U) := FU.io.output(i)
+        when(start){
+          data(i.U) := FU.io.output(i)
+        }
       }
       x.fromVecUInt(data)
       (x, valid)

@@ -7,7 +7,7 @@ import config._
 import dnn_layers.PW_Block
 import node.{FPvecN, matNxN, vecN}
 import shell._
-import tensorKernels.MVM_Block
+import tensorKernels.SpMM_Block
 
 /** DNNCore.
   *
@@ -27,7 +27,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 //  val shape = new FPvecN(2, S, 0)
   val shape = new vecN(1, 0, false)
 
-  val block = Module(new MVM_Block(NumRows = 2, "inp")(shape))
+  val block = Module(new SpMM_Block(NumRows = 2, "inp")(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *

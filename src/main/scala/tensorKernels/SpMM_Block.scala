@@ -22,7 +22,7 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class MVM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p: Parameters)
+class SpMM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tpMem = new TensorParams(memTensorType)
 
@@ -49,15 +49,15 @@ class MVM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p: 
   })
 }
 
-class MVM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
+class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
 (NumRows: Int, memTensorType: String = "none")
-(vecShape: => L)(implicit p: Parameters)
-  extends MVM_BlockIO(NumRows, memTensorType)(p) {
+(segShape: => L)(implicit p: Parameters)
+  extends SpMM_BlockIO(NumRows, memTensorType)(p) {
 
-  val inDMA1 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(vecShape))
-  val inDMA2 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(vecShape))
+  val inDMA1 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(segShape))
+  val inDMA2 =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType)(segShape))
 
-  val ShapeTransformer = Module(new ShapeTransformer(NumRows = 2, 1, 20, memTensorType)(vecShape))
+  val ShapeTransformer = Module(new ShapeTransformer(NumRows = 2, 1, 20, memTensorType)(segShape))
 
   val shape = new vecN(2, 0, false)
   val mul = Module(new CooSCALNode(N = 2, ID = 0, opCode = "Mul")(shape))
