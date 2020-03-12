@@ -34,7 +34,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
    *===============================================*/
   val length = RegInit(init = maxStreamLen.U)
   when(io.start) {
-    length := io.len
+    length := 16.U
   }
 
   merger(0).io.eopIn := false.B
@@ -86,7 +86,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
 
   when(io.out.fire() && switchOn) {outCnt.inc()}
 
-  when(outCnt.value === 6.U *length - 1.U) {
+  when(outCnt.value === length - 1.U) {
     io.last := true.B
     io.done := true.B
     switchOn := false.B

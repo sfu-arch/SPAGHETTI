@@ -67,7 +67,7 @@ class PW_Block[L <: Shapes, K <: Shapes : OperatorDot : OperatorReduction]
   io.outDMA_act_time := outDMA_act_time.value
   io.mac_time := mac_time.value
 
-  val M_Brick_in =  Module(new inDMA_act_HWC(Hx, NumOuts = 1, memTensorType)(memShape))
+  val M_Brick_in =  Module(new inDMA_act_HWC(Hx, NumOuts = 1, memTensorType))
 
   val I_Brick = Module(new ShapeTransformer(Hx, Fx, bufSize = 20, memTensorType)(CxShape))
 

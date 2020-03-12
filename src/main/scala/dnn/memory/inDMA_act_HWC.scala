@@ -19,7 +19,7 @@ import dnn.memory.ISA._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class inDMA_act_HWCIO[gen <: Shapes](NumRows: Int, NumOuts: Int, memTensorType: String = "none")(memShape: => gen)(implicit val p: Parameters)
+class inDMA_act_HWCIO(NumRows: Int, NumOuts: Int, memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tp = new TensorParams(memTensorType)
   val mp = p(ShellKey).memParams
@@ -34,8 +34,8 @@ class inDMA_act_HWCIO[gen <: Shapes](NumRows: Int, NumOuts: Int, memTensorType: 
   })
 }
 
-class inDMA_act_HWC[L <: Shapes](NumRows: Int, NumOuts: Int, memTensorType: String = "none")(memShape: => L)(implicit p: Parameters)
-  extends inDMA_act_HWCIO(NumRows, NumOuts, memTensorType)(memShape)(p) {
+class inDMA_act_HWC(NumRows: Int, NumOuts: Int, memTensorType: String = "none")(implicit p: Parameters)
+  extends inDMA_act_HWCIO(NumRows, NumOuts, memTensorType)(p) {
 
   val tensorLoad = for (i <- 0 until NumRows) yield {
     val tensorL = Module(new TensorLoad(memTensorType))
