@@ -119,7 +119,7 @@ class PW_Block[L <: Shapes, K <: Shapes : OperatorDot : OperatorReduction]
   M_Brick_in.io.baddr := io.inBaseAddr
 
   I_Brick.io.start := M_Brick_in.io.done
-  I_Brick.io.rowWidth := io.rowWidth
+  I_Brick.io.len := io.rowWidth
   I_Brick.io.depth := CxShape.getLength().U * ChBatch.U
   for (i <- 0 until Hx) {
     M_Brick_in.io.tensor(i) <> I_Brick.io.tensor(i)
@@ -136,7 +136,7 @@ class PW_Block[L <: Shapes, K <: Shapes : OperatorDot : OperatorReduction]
     L_Brick(i).io.rowWidth := io.rowWidth
 
     for (j <- 0 until Hx) {
-      L_Brick(i).io.in(j) <> I_Brick.io.Out(j)(i)
+      L_Brick(i).io.in(j) <> I_Brick.io.out(j)(i)
 
       M_Brick_out(i).io.in(j) <> L_Brick(i).io.Out(j)
       io.vme_wr(i*Hx + j) <> M_Brick_out(i).io.vme_wr(j)

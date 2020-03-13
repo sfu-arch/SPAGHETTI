@@ -32,7 +32,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   /* ================================================================== *
      *                      Basic Block signals                         *
      * ================================================================== */
-  block.io.len := 32.U //3.U
+  block.io.len := 10.U //3.U
 
   /* ================================================================== *
      *                           Connections                            *
@@ -49,7 +49,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
     * ================================================================== */
 
   for (i <- 0 until 2) {
-    io.vme.rd(i) <> block.io.vme_rd(i)
+    io.vme.rd(i) <> block.io.vme_rd_ptr(i)
   }
 
 //  for (i <- 0 until 2) {
@@ -61,8 +61,8 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
   block.io.start := false.B
 
-  block.io.in1_BaseAddr := io.vcr.ptrs(0)
-  block.io.in2_BaseAddr := io.vcr.ptrs(1)
+  block.io.ind_A_BaseAddr := io.vcr.ptrs(0)
+  block.io.val_A_BaseAddr := io.vcr.ptrs(1)
   block.io.outBaseAddr := io.vcr.ptrs(2)
 
   val sIdle :: sExec :: sFinish :: Nil = Enum(3)

@@ -31,14 +31,22 @@ class SpMM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p:
     val start = Input(Bool())
     val done = Output(Bool())
 
-    val in1_BaseAddr = Input(UInt(mp.addrBits.W))
-    val in2_BaseAddr = Input(UInt(mp.addrBits.W))
+    val ind_A_BaseAddr = Input(UInt(mp.addrBits.W))
+    val val_A_BaseAddr = Input(UInt(mp.addrBits.W))
+    val ptr_A_BaseAddr = Input(UInt(mp.addrBits.W))
+
+    val ind_B_BaseAddr = Input(UInt(mp.addrBits.W))
+    val val_B_BaseAddr = Input(UInt(mp.addrBits.W))
+    val ptr_B_BaseAddr = Input(UInt(mp.addrBits.W))
 
     val outBaseAddr = Input(UInt(mp.addrBits.W))
 
     val len = Input(UInt(mp.addrBits.W))
+    val segCols = Input(UInt(mp.addrBits.W))
 
-    val vme_rd = Vec(NumRows, new VMEReadMaster)
+    val vme_rd_ptr = Vec(2, new VMEReadMaster)
+    val vme_rd_ind = Vec(2, new VMEReadMaster)
+    val vme_rd_val = Vec(2, new VMEReadMaster)
 //    val vme_wr = Vec(NumRows, new VMEWriteMaster)
     val vme_wr = new VMEWriteMaster
 
@@ -54,10 +62,23 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 (segShape: => L)(implicit p: Parameters)
   extends SpMM_BlockIO(NumRows, memTensorType)(p) {
 
-  val indDMA =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
-  val valDMA =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
 
-  val shapeTransformer = Module(new CooShapeTransformer(20, memTensorType)(segShape))
+  val shape = new vecN(1, 0, false)
+
+  val indDMA_A =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+  val valDMA_A =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+  val ptrDMA_A =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+
+  val indDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+  val valDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+  val ptrDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+
+  val shapeTransformer_A = Module(new CooShapeTransformer(20, memTensorType)(segShape))
+  val shapeTransformer_B = Module(new CooShapeTransformer(20, memTensorType)(segShape))
+
+  val ptrST_A = Module(new ShapeTransformer(NumRows = 1, NumOuts = 1, 20, memTensorType)(shape))
+  val ptrST_B = Module(new ShapeTransformer(NumRows = 1, NumOuts = 1, 20, memTensorType)(shape))
+
 
   val mul = Module(new CooSCALNode(N = 2, ID = 0, opCode = "Mul")(segShape))
 
@@ -86,61 +107,130 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
     *                      inDMA_acts & loadNodes                       *
     * ================================================================== */
 
-  indDMA.io.start := io.start
-  indDMA.io.rowWidth := io.len
-  indDMA.io.depth := 1.U
-  indDMA.io.baddr := io.in1_BaseAddr
+  ptrDMA_A.io.start := io.start
+  ptrDMA_A.io.rowWidth := io.segCols
+  ptrDMA_A.io.depth := 1.U
+  ptrDMA_A.io.baddr := io.ptr_A_BaseAddr
 
-  valDMA.io.start := io.start
-  valDMA.io.rowWidth := io.len
-  valDMA.io.depth := 1.U
-  valDMA.io.baddr := io.in2_BaseAddr
+  indDMA_A.io.start := io.start
+  indDMA_A.io.rowWidth := io.len
+  indDMA_A.io.depth := 1.U
+  indDMA_A.io.baddr := io.ind_A_BaseAddr
 
-  shapeTransformer.io.len := io.len
+  valDMA_A.io.start := io.start
+  valDMA_A.io.rowWidth := io.len
+  valDMA_A.io.depth := 1.U
+  valDMA_A.io.baddr := io.val_A_BaseAddr
 
-  indDMA.io.tensor(0) <> shapeTransformer.io.indTensor
-  valDMA.io.tensor(0) <> shapeTransformer.io.valTensor
-  io.vme_rd(0) <> indDMA.io.vme_rd(0)
-  io.vme_rd(1) <> valDMA.io.vme_rd(0)
+  ptrDMA_B.io.start := io.start
+  ptrDMA_B.io.rowWidth := io.segCols
+  ptrDMA_B.io.depth := 1.U
+  ptrDMA_B.io.baddr := io.ptr_B_BaseAddr
 
+  indDMA_B.io.start := io.start
+  indDMA_B.io.rowWidth := io.len
+  indDMA_B.io.depth := 1.U
+  indDMA_B.io.baddr := io.ind_B_BaseAddr
+
+  valDMA_B.io.start := io.start
+  valDMA_B.io.rowWidth := io.len
+  valDMA_B.io.depth := 1.U
+  valDMA_B.io.baddr := io.val_B_BaseAddr
+
+  io.vme_rd_ind(0) <> indDMA_A.io.vme_rd(0)
+  io.vme_rd_ind(1) <> indDMA_B.io.vme_rd(0)
+
+  io.vme_rd_val(0) <> valDMA_A.io.vme_rd(0)
+  io.vme_rd_val(1) <> valDMA_B.io.vme_rd(0)
+
+  io.vme_rd_ptr(0) <> ptrDMA_A.io.vme_rd(0)
+  io.vme_rd_ptr(1) <> ptrDMA_B.io.vme_rd(0)
+
+  indDMA_A.io.tensor(0) <> shapeTransformer_A.io.indTensor
+  valDMA_A.io.tensor(0) <> shapeTransformer_A.io.valTensor
+  ptrDMA_A.io.tensor(0) <> ptrST_A.io.tensor
+
+  indDMA_B.io.tensor(0) <> shapeTransformer_B.io.indTensor
+  valDMA_B.io.tensor(0) <> shapeTransformer_B.io.valTensor
+  ptrDMA_B.io.tensor(0) <> ptrST_B.io.tensor
+
+  /* ================================================================== *
+   *                      inDMA_acts & loadNodes                       *
+   * ================================================================== */
+
+  shapeTransformer_A.io.len := io.len //10
+  shapeTransformer_B.io.len := io.len
+
+  ptrST_A.io.len := io.segCols
+  ptrST_B.io.len := io.segCols
+  ptrST_A.io.depth := 1.U
+  ptrST_B.io.depth := 1.U
 
   io.vme_wr <> outDMA.io.vme_wr(0)
 
-  outDMA.io.last(0) := merger.io.last
-  merger.io.len := 16.U
+  merger.io.len := io.len
+  outDMA.io.baddr := io.outBaseAddr
+  outDMA.io.rowWidth := io.len
 
-  val inDMA_doneR = for (i <- 0 until 2) yield {
+  /* ================================================================== *
+    *                        DMA done registers                         *
+    * ================================================================== */
+
+  val DMA_doneR_A = for (i <- 0 until 3) yield {
     val doneReg = RegInit(init = false.B)
     doneReg
   }
+  val DMA_doneR_B = for (i <- 0 until 3) yield {
+    val doneReg = RegInit(init = false.B)
+    doneReg
+  }
+  shapeTransformer_A.io.start := DMA_doneR_A.reduceLeft(_ && _)
+  ptrST_A.io.start := DMA_doneR_A.reduceLeft(_ && _)
 
-  shapeTransformer.io.start := inDMA_doneR.reduceLeft(_ && _)
+  shapeTransformer_B.io.start := DMA_doneR_B.reduceLeft(_ && _)
+  ptrST_B.io.start := DMA_doneR_B.reduceLeft(_ && _)
 
-  when (inDMA_doneR.reduceLeft(_ && _)) {
-    inDMA_doneR.foreach(a => a := false.B)
+  when (DMA_doneR_A.reduceLeft(_ && _)) {
+    DMA_doneR_A.foreach(a => a := false.B)
+  }
+  when (DMA_doneR_B.reduceLeft(_ && _)) {
+    DMA_doneR_B.foreach(a => a := false.B)
   }
 
-  when(indDMA.io.done) {inDMA_doneR(0) := true.B}
-  when(valDMA.io.done) {inDMA_doneR(1) := true.B}
+  when(ptrDMA_A.io.done) {DMA_doneR_A(0) := true.B}
+  when(indDMA_A.io.done) {DMA_doneR_A(1) := true.B}
+  when(valDMA_A.io.done) {DMA_doneR_A(2) := true.B}
+  when(ptrDMA_B.io.done) {DMA_doneR_B(0) := true.B}
+  when(indDMA_B.io.done) {DMA_doneR_B(1) := true.B}
+  when(valDMA_B.io.done) {DMA_doneR_B(2) := true.B}
+
 
   outDMA.io.start := merger.io.done
+  outDMA.io.last(0) := merger.io.last
 
   /* ================================================================== *
-    *                        loadNodes & mac1Ds                         *
+    *                        pointer difference                         *
     * ================================================================== */
 
-  mul.io.scal.bits.data := shapeTransformer.io.out(0).bits.data
+  val ptrData = RegInit(UInt(p(XLEN)))
+
+
+  /* ================================================================== *
+     *                        loadNodes & mac1Ds                         *
+     * ================================================================== */
+
+  mul.io.scal.bits.data := shapeTransformer_A.io.out(0).bits.data
   mul.io.scal.bits.row := 0.U
   mul.io.scal.bits.col := 0.U
   mul.io.scal.bits.valid := true.B
-  mul.io.scal.valid := shapeTransformer.io.out(0).valid
+  mul.io.scal.valid := shapeTransformer_A.io.out(0).valid
 
   for (i <- 0 until 2) {
     mul.io.out(i).ready := merger.io.in.ready
   }
 
   for (i <- 0 until segShape.getLength()) {
-    mul.io.vec(i) <> shapeTransformer.io.out(i)
+    mul.io.vec(i) <> shapeTransformer_A.io.out(i)
 
   }
 
@@ -149,10 +239,6 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   merger.io.in.bits.row := 0.U
   merger.io.in.bits.col := 0.U
   merger.io.in.bits.valid := true.B
-
-
-  outDMA.io.baddr := io.outBaseAddr
-  outDMA.io.rowWidth := io.len / 2.U
 
 
   merger.io.out.ready := outDMA.io.in(0).ready
@@ -179,13 +265,13 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   switch(state) {
     is(sIdle) {
       when(io.start) {
-        indDMA.io.start := true.B
-        valDMA.io.start := true.B
+        indDMA_A.io.start := true.B
+        valDMA_A.io.start := true.B
         state := sInRead
       }
     }
     is(sInRead) {
-      when(inDMA_doneR.reduceLeft(_ && _)){
+      when(DMA_doneR_A.reduceLeft(_ && _)){
         state := sExec
         merger.io.start := true.B
       }

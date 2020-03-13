@@ -27,10 +27,10 @@ class ShapeTransformerIO[gen <: Shapes](NumRows: Int, NumOuts: Int, memTensorTyp
   val io = IO(new Bundle {
     val start = Input(Bool())
     val done = Output(Bool())
-    val rowWidth = Input(UInt(mp.addrBits.W))
+    val len = Input(UInt(mp.addrBits.W))
     val depth = Input(UInt(mp.addrBits.W))
     val tensor = Vec(NumRows, new TensorMaster(memTensorType))
-    val Out = Vec(NumRows, Vec(NumOuts, Decoupled(new CustomDataBundle(UInt(macShape.getWidth.W)))))
+    val out = Vec(NumRows, Vec(NumOuts, Decoupled(new CustomDataBundle(UInt(macShape.getWidth.W)))))
   })
 }
 
@@ -38,13 +38,13 @@ class ShapeTransformer[L <: Shapes](NumRows: Int, NumOuts: Int, bufSize: Int, me
                                    (macShape: => L)(implicit p: Parameters)
   extends ShapeTransformerIO(NumRows, NumOuts, memTensorType)(macShape)(p) {
 
-  val wgtNum = io.rowWidth * io.depth / macShape.getLength().U
-  val memTensorRows = Mux(io.rowWidth * io.depth % tp.tensorWidth.U === 0.U,
-    io.rowWidth * io.depth / tp.tensorWidth.U,
-    (io.rowWidth * io.depth / tp.tensorWidth.U) + 1.U)
+  val elemNum = io.len * io.depth / macShape.getLength().U
+  val memTensorRows = Mux(io.len * io.depth % tp.tensorWidth.U === 0.U,
+    io.len * io.depth / tp.tensorWidth.U,
+    (io.len * io.depth / tp.tensorWidth.U) + 1.U)
 
   val readTensorCnt = Counter(tp.memDepth)
-  val wgtOutCnt = Counter(tp.memDepth)
+  val popCnt = Counter(tp.memDepth)
 
   val sIdle :: sRead :: sClear :: Nil = Enum(3)
   val state = RegInit(sIdle)
@@ -66,14 +66,14 @@ class ShapeTransformer[L <: Shapes](NumRows: Int, NumOuts: Int, bufSize: Int, me
     io.tensor(i).wr <> DontCare
 
     for (j <- 0 until NumOuts){
-      io.Out(i)(j).bits.data := queue(i).io.deq.bits.asUInt()
-      io.Out(i)(j).bits.valid := true.B
-      io.Out(i)(j).bits.predicate := true.B
-      io.Out(i)(j).bits.taskID := 0.U
+      io.out(i)(j).bits.data := queue(i).io.deq.bits.asUInt()
+      io.out(i)(j).bits.valid := true.B
+      io.out(i)(j).bits.predicate := true.B
+      io.out(i)(j).bits.taskID := 0.U
 
-      io.Out(i)(j).valid := queue(i).io.deq.valid
+      io.out(i)(j).valid := queue(i).io.deq.valid
     }
-    queue(i).io.deq.ready := io.Out(i).map(_.ready).reduceLeft(_&&_)
+    queue(i).io.deq.ready := io.out(i).map(_.ready).reduceLeft(_&&_)
   }
 
   io.done := false.B
@@ -81,7 +81,7 @@ class ShapeTransformer[L <: Shapes](NumRows: Int, NumOuts: Int, bufSize: Int, me
 //  when(queue.map(_.io.enq.fire()).reduceLeft(_&&_)) {readTensorCnt.inc()}
   when(queue.map(_.io.enq.ready).reduceLeft(_&&_) && state  === sRead) {readTensorCnt.inc()}
 
-  when(queue.map(_.io.deq.fire()).reduceLeft(_&&_)) {wgtOutCnt.inc()}
+  when(queue.map(_.io.deq.fire()).reduceLeft(_&&_)) {popCnt.inc()}
 //  when(wgtOutCnt.value === wgtNum) {wgtOutCnt.value := 0.U}
 
 
@@ -101,8 +101,8 @@ class ShapeTransformer[L <: Shapes](NumRows: Int, NumOuts: Int, bufSize: Int, me
       }
     }
     is(sClear){
-      when(wgtOutCnt.value === wgtNum - 1.U){
-        wgtOutCnt.value := 0.U
+      when(popCnt.value === elemNum - 1.U){
+        popCnt.value := 0.U
         queue.foreach(_.io.clear := true.B)
         io.done := true.B
         state := sIdle
