@@ -96,7 +96,7 @@ class CooShapeTransformer[L <: Shapes](bufSize: Int, memTensorType: String = "no
       }
     }
     is(sClear){
-      when(popCnt.value === elemNum - 1.U){
+      when(popCnt.value === elemNum){
         popCnt.value := 0.U
         queue.io.clear := true.B
         io.done := true.B

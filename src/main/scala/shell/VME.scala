@@ -186,25 +186,28 @@ class VME(implicit p: Parameters) extends Module {
     wr_cnt := wr_cnt + 1.U
   }
 
+  val rd_len = RegInit(0.U(lenBits.W))
+  val wr_len = RegInit(0.U(lenBits.W))
+  val rd_addr = RegInit(0.U(addrBits.W))
+  val wr_addr = RegInit(0.U(addrBits.W))
+
   switch (wstate) {
-    is (sWriteIdle) {
-//      when (io.vme.wr(0).cmd.valid) {
+    is (sWriteIdle) { //0
       when (wr_arb.io.out.valid) {
         wstate := sWriteAddr
       }
     }
-    is (sWriteAddr) {
+    is (sWriteAddr) { //1
       when (io.mem.aw.ready) {
         wstate := sWriteData
       }
     }
-    is (sWriteData) {
-//      when (io.vme.wr(0).data.valid && io.mem.w.ready && wr_cnt === io.vme.wr(0).cmd.bits.len) {
-      when (io.vme.wr(wr_arb_chosen).data.valid && io.mem.w.ready && wr_cnt === wr_arb.io.out.bits.len) {
+    is (sWriteData) { //2
+      when (io.vme.wr(wr_arb_chosen).data.valid && io.mem.w.ready && wr_cnt === wr_len) {
           wstate := sWriteResp
         }
       }
-    is (sWriteResp) {
+    is (sWriteResp) { //3
       when (io.mem.b.valid) {
         wstate := sWriteIdle
       }
@@ -213,10 +216,6 @@ class VME(implicit p: Parameters) extends Module {
 
   // registers storing read/write cmds
 
-  val rd_len = RegInit(0.U(lenBits.W))
-  val wr_len = RegInit(0.U(lenBits.W))
-  val rd_addr = RegInit(0.U(addrBits.W))
-  val wr_addr = RegInit(0.U(addrBits.W))
 
   when (rd_arb.io.out.fire()) {
     rd_len := rd_arb.io.out.bits.len

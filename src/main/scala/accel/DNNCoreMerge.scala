@@ -25,7 +25,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
   val S = new FType(8, 24)
 //  val shape = new FPvecN(2, S, 0)
-  val shape = new vecN(2, 0, false)
+  val shape = new vecN(1, 0, false)
 
   val block = Module(new SpMM_Block(NumRows = 2, "inp")(shape))
 
@@ -33,6 +33,9 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
      *                      Basic Block signals                         *
      * ================================================================== */
   block.io.len := 10.U //3.U
+  block.io.segCols := 3.U
+
+
 
   /* ================================================================== *
      *                           Connections                            *
@@ -48,22 +51,33 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
     *                    VME Reads and writes                           *
     * ================================================================== */
 
-  for (i <- 0 until 2) {
-    io.vme.rd(i) <> block.io.vme_rd_ptr(i)
-  }
 
-//  for (i <- 0 until 2) {
-//    io.vme.wr(i) <> merge.io.vme_wr(i)
-//  }
+  io.vme.rd(0) <> block.io.vme_rd_ptr(0)
+  io.vme.rd(1) <> block.io.vme_rd_ind(0)
+  io.vme.rd(2) <> block.io.vme_rd_val(0)
+
+  io.vme.rd(3) <> block.io.vme_rd_ptr(1)
+  io.vme.rd(4) <> block.io.vme_rd_ind(1)
+  io.vme.rd(5) <> block.io.vme_rd_val(1)
 
 
-  io.vme.wr(0) <> block.io.vme_wr
+  io.vme.wr(0) <> block.io.vme_wr_ptr_A
+  io.vme.wr(1) <> block.io.vme_wr_ptr_B
+  io.vme.wr(2) <> block.io.vme_wr
 
   block.io.start := false.B
 
-  block.io.ind_A_BaseAddr := io.vcr.ptrs(0)
-  block.io.val_A_BaseAddr := io.vcr.ptrs(1)
-  block.io.outBaseAddr := io.vcr.ptrs(2)
+  block.io.ptr_A_BaseAddr := io.vcr.ptrs(0)
+  block.io.ind_A_BaseAddr := io.vcr.ptrs(1)
+  block.io.val_A_BaseAddr := io.vcr.ptrs(2)
+
+  block.io.ptr_B_BaseAddr := io.vcr.ptrs(3)
+  block.io.ind_B_BaseAddr := io.vcr.ptrs(4)
+  block.io.val_B_BaseAddr := io.vcr.ptrs(5)
+
+  block.io.outBaseAddr_ptrA := io.vcr.ptrs(6)
+  block.io.outBaseAddr_ptrB := io.vcr.ptrs(7)
+  block.io.outBaseAddr := io.vcr.ptrs(8)
 
   val sIdle :: sExec :: sFinish :: Nil = Enum(3)
 

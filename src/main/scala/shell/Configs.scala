@@ -6,7 +6,7 @@ import config._
 import junctions._
 
 
-class VCRSimParams(val num_ptrs: Int = 4, val num_vals: Int = 2,
+class VCRSimParams(val num_ptrs: Int = 9, val num_vals: Int = 2,
                    val num_event: Int = 1, val num_ctrl: Int = 1) extends VCRParams {
   override val nCtrl = num_ctrl
   override val nECnt = num_event
@@ -22,8 +22,8 @@ class VCRSimParams(val num_ptrs: Int = 4, val num_vals: Int = 2,
   * These parameters are used on VME interfaces and modules.
   */
 class VMESimParams() extends VMEParams {
-  override val nReadClients: Int = 2
-  override val nWriteClients: Int = 1
+  override val nReadClients: Int = 6
+  override val nWriteClients: Int = 3
   require(nReadClients > 0,
     s"\n\n[Dandelion] [VMEParams] nReadClients must be larger than 0\n\n")
   require(
@@ -45,7 +45,7 @@ class TensorBrickParams() {
 
 
 /** De10Config. Shell configuration for De10 */
-class De10Config (val num_ptrs: Int = 3, val num_vals: Int = 2, val num_event: Int = 4, val num_ctrl: Int = 1)extends Config((site, here, up) => {
+class De10Config (val num_ptrs: Int = 9, val num_vals: Int = 2, val num_event: Int = 4, val num_ctrl: Int = 1)extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
       addrBits = 16, dataBits = 32, idBits = 13, lenBits = 4),
@@ -62,7 +62,7 @@ class De10Config (val num_ptrs: Int = 3, val num_vals: Int = 2, val num_event: I
 
 
 /** PynqConfig. Shell configuration for Pynq */
-class PynqConfig (val num_ptrs: Int = 3, val num_vals: Int = 2, val num_event: Int = 4, val num_ctrl: Int = 1)extends Config((site, here, up) => {
+class PynqConfig (val num_ptrs: Int = 9, val num_vals: Int = 2, val num_event: Int = 4, val num_ctrl: Int = 1)extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
       coherent = false,

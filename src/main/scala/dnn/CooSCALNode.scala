@@ -48,8 +48,8 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
   FU.io.b.valid := io.scal.valid
 
   FU.io.o.ready := io.out.map(_.ready).reduceLeft(_&&_)
-  io.scal.ready := io.out.map(_.ready).reduceLeft(_&&_)
-  io.vec.map(_.ready).foreach(a => a := io.out.map(_.ready).reduceLeft(_&&_))
+  io.scal.ready := io.out.map(_.ready).reduceLeft(_&&_) && io.vec.map(_.valid).reduceLeft(_&&_)
+  io.vec.map(_.ready).foreach(a => a := io.out.map(_.ready).reduceLeft(_&&_) && io.scal.valid)
 
 
   for (i <- 0 until left.getLength()) {
