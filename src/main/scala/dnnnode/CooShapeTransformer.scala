@@ -32,7 +32,7 @@ class CooShapeTransformerIO[gen <: Shapes](memTensorType: String = "none")(outSh
   })
 }
 
-class CooShapeTransformer[L <: Shapes](bufSize: Int, memTensorType: String = "none")
+class CooShapeTransformer[L <: Shapes](rowBased: Boolean, bufSize: Int, memTensorType: String = "none")
                                       (outShape: => L)(implicit p: Parameters)
   extends CooShapeTransformerIO(memTensorType)(outShape)(p) {
 
@@ -53,12 +53,23 @@ class CooShapeTransformer[L <: Shapes](bufSize: Int, memTensorType: String = "no
   val validReg = RegInit(false.B)
 
   val dataIn = Wire(Vec(tp.tensorWidth, new CooDataBundle(UInt(p(XLEN).W))))
-  for (i <- 0 until tp.tensorWidth) {
-    dataIn(i).row := io.indTensor.rd.data.bits(0)(i)
-    dataIn(i).data := io.valTensor.rd.data.bits(0)(i)
-    dataIn(i).col := 0.U
-    dataIn(i).valid := true.B
+
+  if(rowBased){
+    for (i <- 0 until tp.tensorWidth) {
+      dataIn(i).data := io.valTensor.rd.data.bits(0)(i)
+      dataIn(i).row := io.indTensor.rd.data.bits(0)(i)
+      dataIn(i).col := 0.U
+      dataIn(i).valid := true.B
+    }
+  } else{
+    for (i <- 0 until tp.tensorWidth) {
+      dataIn(i).data := io.valTensor.rd.data.bits(0)(i)
+      dataIn(i).row := 0.U
+      dataIn(i).col := io.indTensor.rd.data.bits(0)(i)
+      dataIn(i).valid := true.B
+    }
   }
+
 
   io.done := false.B
   queue.io.clear := false.B
@@ -96,7 +107,7 @@ class CooShapeTransformer[L <: Shapes](bufSize: Int, memTensorType: String = "no
       }
     }
     is(sClear){
-      when(popCnt.value === elemNum){
+      when((popCnt.value === elemNum - 1.U) && queue.io.deq.fire()){
         popCnt.value := 0.U
         queue.io.clear := true.B
         io.done := true.B

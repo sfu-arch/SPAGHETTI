@@ -61,9 +61,9 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   io.vme.rd(5) <> block.io.vme_rd_val(1)
 
 
-  io.vme.wr(0) <> block.io.vme_wr_ptr_A
-  io.vme.wr(1) <> block.io.vme_wr_ptr_B
-  io.vme.wr(2) <> block.io.vme_wr
+  io.vme.wr(0) <> block.io.vme_wr_row
+  io.vme.wr(1) <> block.io.vme_wr_col
+  io.vme.wr(2) <> block.io.vme_wr_val
 
   block.io.start := false.B
 
@@ -75,9 +75,9 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   block.io.ind_B_BaseAddr := io.vcr.ptrs(4)
   block.io.val_B_BaseAddr := io.vcr.ptrs(5)
 
-  block.io.outBaseAddr_ptrA := io.vcr.ptrs(6)
-  block.io.outBaseAddr_ptrB := io.vcr.ptrs(7)
-  block.io.outBaseAddr := io.vcr.ptrs(8)
+  block.io.outBaseAddr_row := io.vcr.ptrs(6)
+  block.io.outBaseAddr_col := io.vcr.ptrs(7)
+  block.io.outBaseAddr_val := io.vcr.ptrs(8)
 
   val sIdle :: sExec :: sFinish :: Nil = Enum(3)
 

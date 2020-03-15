@@ -25,7 +25,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
   val num_Merger = log2Ceil(maxStreamLen)
 
   val merger = for (i <-0 until num_Merger) yield {
-    val Merger = Module(new MergeNode(level = math.pow(2,i).toInt, ID = 1, rowBased = true))
+    val Merger = Module(new MergeNode(level = math.pow(2,i).toInt, ID = 1, rowBased = rowBased))
     Merger
   }
 

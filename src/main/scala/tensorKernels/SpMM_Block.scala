@@ -39,9 +39,9 @@ class SpMM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p:
     val val_B_BaseAddr = Input(UInt(mp.addrBits.W))
     val ptr_B_BaseAddr = Input(UInt(mp.addrBits.W))
 
-    val outBaseAddr = Input(UInt(mp.addrBits.W))
-    val outBaseAddr_ptrA = Input(UInt(mp.addrBits.W))
-    val outBaseAddr_ptrB = Input(UInt(mp.addrBits.W))
+    val outBaseAddr_row = Input(UInt(mp.addrBits.W))
+    val outBaseAddr_col = Input(UInt(mp.addrBits.W))
+    val outBaseAddr_val = Input(UInt(mp.addrBits.W))
 
     val len = Input(UInt(mp.addrBits.W))
     val segCols = Input(UInt(mp.addrBits.W))
@@ -50,11 +50,9 @@ class SpMM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p:
     val vme_rd_ind = Vec(2, new VMEReadMaster)
     val vme_rd_val = Vec(2, new VMEReadMaster)
 //    val vme_wr = Vec(NumRows, new VMEWriteMaster)
-    val vme_wr = new VMEWriteMaster
-
-    val vme_wr_ptr_A = new VMEWriteMaster
-    val vme_wr_ptr_B = new VMEWriteMaster
-
+    val vme_wr_row = new VMEWriteMaster
+    val vme_wr_col = new VMEWriteMaster
+    val vme_wr_val = new VMEWriteMaster
 
     val inDMA_time = Output(UInt(mp.addrBits.W))
     val outDMA_time = Output(UInt(mp.addrBits.W))
@@ -78,8 +76,8 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val valDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
   val ptrDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
 
-  val shapeTransformer_A = Module(new CooShapeTransformer(20, memTensorType)(segShape))
-  val shapeTransformer_B = Module(new CooShapeTransformer(20, memTensorType)(segShape))
+  val shapeTransformer_A = Module(new CooShapeTransformer(rowBased = true, 20, memTensorType)(segShape))
+  val shapeTransformer_B = Module(new CooShapeTransformer(rowBased = false, 20, memTensorType)(segShape))
 
   val ptrST_A = Module(new ShapeTransformer(NumRows = 1, NumOuts = 1, 20, memTensorType)(shape))
   val ptrST_B = Module(new ShapeTransformer(NumRows = 1, NumOuts = 1, 20, memTensorType)(shape))
@@ -92,10 +90,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 
   val merger = Module(new MergeSort(maxStreamLen = 16, ID = 1, rowBased = true))
 
-  val outDMA = Module(new outDMA_act(NumRows = 1, 24, memTensorType))
-
-  val outDMA_ptr_A = Module(new outDMA_act(NumRows = 1, 20, memTensorType))
-  val outDMA_ptr_B = Module(new outDMA_act(NumRows = 1, 20, memTensorType))
+  val outDMA = Module(new outDMA_coo(bufSize = 24, memTensorType))
 
   val readTensorCnt = Counter(tpMem.memDepth)
 
@@ -175,42 +170,30 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   ptrST_A.io.depth := 1.U
   ptrST_B.io.depth := 1.U
 
-  io.vme_wr <> outDMA.io.vme_wr(0)
+  io.vme_wr_row <> outDMA.io.vme_wr_row
+  io.vme_wr_col <> outDMA.io.vme_wr_col
+  io.vme_wr_val <> outDMA.io.vme_wr_val
 
 
 
   merger.io.len := io.len
-  outDMA.io.baddr := io.outBaseAddr
-  outDMA.io.rowWidth := io.len
+  outDMA.io.baddr_row := io.outBaseAddr_row
+  outDMA.io.baddr_col := io.outBaseAddr_col
+  outDMA.io.baddr_val := io.outBaseAddr_val
+  outDMA.io.len := io.len
 
   outDMA.io.start := merger.io.done
-  outDMA.io.last(0) := merger.io.last
+  outDMA.io.last := merger.io.last
 
-  io.vme_wr_ptr_A <> outDMA_ptr_A.io.vme_wr(0)
-  io.vme_wr_ptr_B <> outDMA_ptr_B.io.vme_wr(0)
-  outDMA_ptr_A.io.baddr := io.outBaseAddr_ptrA
-  outDMA_ptr_B.io.baddr := io.outBaseAddr_ptrB
-  outDMA_ptr_A.io.rowWidth := io.segCols
-  outDMA_ptr_B.io.rowWidth := io.segCols
+  ptrDiff_A.io.deq <> DontCare
+  ptrDiff_B.io.deq <> DontCare
 
-  outDMA_ptr_A.io.start := merger.io.done
-  outDMA_ptr_A.io.last(0) := merger.io.last
-  outDMA_ptr_B.io.start := merger.io.done
-  outDMA_ptr_B.io.last(0) := merger.io.last
-
-  outDMA_ptr_A.io.in(0).valid := ptrDiff_A.io.deq.valid
-  ptrDiff_A.io.deq.ready := outDMA_ptr_A.io.in(0).ready
-  outDMA_ptr_A.io.in(0).bits.data := ptrDiff_A.io.deq.bits
-  outDMA_ptr_A.io.in(0).bits.taskID := 0.U
-  outDMA_ptr_A.io.in(0).bits.predicate := true.B
-  outDMA_ptr_A.io.in(0).bits.valid := true.B
-
-  outDMA_ptr_B.io.in(0).valid := ptrDiff_B.io.deq.valid
-  ptrDiff_B.io.deq.ready := outDMA_ptr_B.io.in(0).ready
-  outDMA_ptr_B.io.in(0).bits.data := ptrDiff_B.io.deq.bits
-  outDMA_ptr_B.io.in(0).bits.taskID := 0.U
-  outDMA_ptr_B.io.in(0).bits.predicate := true.B
-  outDMA_ptr_B.io.in(0).bits.valid := true.B
+//  outDMA_ptr_B.io.in(0).valid := ptrDiff_B.io.deq.valid
+//  ptrDiff_B.io.deq.ready := outDMA_ptr_B.io.in(0).ready
+//  outDMA_ptr_B.io.in(0).bits.data := ptrDiff_B.io.deq.bits
+//  outDMA_ptr_B.io.in(0).bits.taskID := 0.U
+//  outDMA_ptr_B.io.in(0).bits.predicate := true.B
+//  outDMA_ptr_B.io.in(0).bits.valid := true.B
 
   /* ================================================================== *
     *                        DMA done registers                         *
@@ -266,39 +249,18 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   ptrST_B.io.out(0)(0).ready := ptrDiff_B.io.enq.ready
 
   /* ================================================================== *
-     *                        loadNodes & mac1Ds                         *
+     *                       loadNodes & mac1Ds                         *
      * ================================================================== */
 
-//  mul.io.scal.bits.data := shapeTransformer_A.io.out(0).bits.data
-//  mul.io.scal.bits.row := 0.U
-//  mul.io.scal.bits.col := 0.U
-//  mul.io.scal.bits.valid := true.B
-//  mul.io.scal.valid := shapeTransformer_A.io.out(0).valid
-//
   mul.io.scal <> shapeTransformer_B.io.out(0)
 
   for (i <- 0 until segShape.getLength()) {
-    mul.io.out(i).ready := merger.io.in.ready
-  }
-
-  for (i <- 0 until segShape.getLength()) {
     mul.io.vec(i) <> shapeTransformer_A.io.out(i)
-
   }
 
-  merger.io.in.valid := mul.io.out(0).valid
-  merger.io.in.bits.data := mul.io.out(0).bits.data
-  merger.io.in.bits.row := 0.U
-  merger.io.in.bits.col := 0.U
-  merger.io.in.bits.valid := true.B
+  merger.io.in <> mul.io.out(0)
 
-
-  merger.io.out.ready := outDMA.io.in(0).ready
-  outDMA.io.in(0).valid := merger.io.out.valid
-  outDMA.io.in(0).bits.data := merger.io.out.bits.data
-  outDMA.io.in(0).bits.predicate := true.B
-  outDMA.io.in(0).bits.valid := true.B
-  outDMA.io.in(0).bits.taskID := 0.U
+  outDMA.io.in <> merger.io.out
 
 
   /* ================================================================== *

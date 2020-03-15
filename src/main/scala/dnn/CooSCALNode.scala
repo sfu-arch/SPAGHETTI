@@ -55,8 +55,8 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
   for (i <- 0 until left.getLength()) {
     io.out(i).bits.data := FU.io.o.bits.asUInt()(p(XLEN) * (i + 1) - 1, p(XLEN) * i)
     io.out(i).valid := FU.io.o.valid
-    io.out(i).bits.row := io.vec(i).bits.row
-    io.out(i).bits.col := io.scal.bits.col
+    io.out(i).bits.row := RegNext(io.vec(i).bits.row)
+    io.out(i).bits.col := RegNext(io.scal.bits.col)
     io.out(i).bits.valid := true.B
   }
 }
