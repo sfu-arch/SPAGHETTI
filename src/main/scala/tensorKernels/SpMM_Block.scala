@@ -7,7 +7,7 @@ import config._
 import dnn.CooSCALNode
 import dnn.memory._
 import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorReduction}
-import dnnnode.{CooShapeTransformer, DGEMVNode, MIMOQueue, Mac1D, ShapeTransformer}
+import dnnnode.{CooShapeTransformer, CooShifter, DGEMVNode, MIMOQueue, Mac1D, ShapeTransformer}
 import interfaces.{ControlBundle, CustomDataBundle}
 import node.{Shapes, vecN}
 import shell._
@@ -77,7 +77,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val ptrDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
 
   val shapeTransformer_A = Module(new CooShapeTransformer(rowBased = true, 20, memTensorType)(segShape))
-  val shapeTransformer_B = Module(new CooShapeTransformer(rowBased = false, 20, memTensorType)(segShape))
+  val shapeTransformer_B = Module(new CooShifter(rowBased = false, 20, memTensorType)(segShape))
 
   val ptrST_A = Module(new ShapeTransformer(NumRows = 1, NumOuts = 1, 20, memTensorType)(shape))
   val ptrST_B = Module(new ShapeTransformer(NumRows = 1, NumOuts = 1, 20, memTensorType)(shape))
@@ -88,17 +88,17 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 
 
-  val merger = Module(new MergeSort(maxStreamLen = 16, ID = 1, rowBased = true))
+  val merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = true))
 
-  val outDMA = Module(new outDMA_coo(bufSize = 24, memTensorType))
+  val outDMA = Module(new outDMA_coo(bufSize = 100, memTensorType))
 
   val readTensorCnt = Counter(tpMem.memDepth)
 
-  val sIdle :: sInRead :: sExec :: Nil = Enum(3)
+  val sIdle :: sInRead :: sExec :: sDMAwrite :: Nil = Enum(4)
   val state = RegInit(sIdle)
 
   io.done := false.B
-  merger.io.start := false.B
+//  merger.io.start := false.B
 
   val inDMA_time = Counter(2000)
   val outDMA_time = Counter(2000)
@@ -176,24 +176,17 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 
 
 
-  merger.io.len := io.len
+//  merger.io.len := io.len
   outDMA.io.baddr_row := io.outBaseAddr_row
   outDMA.io.baddr_col := io.outBaseAddr_col
   outDMA.io.baddr_val := io.outBaseAddr_val
-  outDMA.io.len := io.len
+  outDMA.io.len := 50.U //io.len
 
-  outDMA.io.start := merger.io.done
+  outDMA.io.start := merger.io.last
   outDMA.io.last := merger.io.last
 
-  ptrDiff_A.io.deq <> DontCare
-  ptrDiff_B.io.deq <> DontCare
-
-//  outDMA_ptr_B.io.in(0).valid := ptrDiff_B.io.deq.valid
-//  ptrDiff_B.io.deq.ready := outDMA_ptr_B.io.in(0).ready
-//  outDMA_ptr_B.io.in(0).bits.data := ptrDiff_B.io.deq.bits
-//  outDMA_ptr_B.io.in(0).bits.taskID := 0.U
-//  outDMA_ptr_B.io.in(0).bits.predicate := true.B
-//  outDMA_ptr_B.io.in(0).bits.valid := true.B
+  ptrDiff_A.io.deq.ready := false.B
+  ptrDiff_B.io.deq.ready := false.B
 
   /* ================================================================== *
     *                        DMA done registers                         *
@@ -252,11 +245,14 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
      *                       loadNodes & mac1Ds                         *
      * ================================================================== */
 
-  mul.io.scal <> shapeTransformer_B.io.out(0)
+//  mul.io.scal <> shifter_B.io.out
+  mul.io.scal.bits := shapeTransformer_B.io.out.bits
+  mul.io.scal.valid := shapeTransformer_B.io.out.valid
+  shapeTransformer_B.io.out.ready := false.B
 
-  for (i <- 0 until segShape.getLength()) {
-    mul.io.vec(i) <> shapeTransformer_A.io.out(i)
-  }
+  mul.io.vec(0).bits := shapeTransformer_A.io.out(0).bits
+  mul.io.vec(0).valid := shapeTransformer_A.io.out(0).valid
+  shapeTransformer_A.io.out(0).ready := false.B
 
   merger.io.in <> mul.io.out(0)
 
@@ -276,6 +272,19 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   when(state === sInRead) {inDMA_time.inc()}
   when(state === sExec) {merge_time.inc()}
 
+  val bCnt = Counter(100)
+  val aCnt = Counter(100)
+
+  shapeTransformer_B.io.idx := bCnt.value
+  shapeTransformer_B.io.numDeq := ptrDiff_B.io.deq.bits
+
+  val outCnt_a = Counter(100)
+  val outCnt_b = Counter(100)
+  when(ptrDiff_A.io.deq.fire()){outCnt_a.inc()}
+  when(ptrDiff_B.io.deq.fire()){outCnt_b.inc()}
+
+  merger.io.eop := false.B
+
   switch(state) {
     is(sIdle) {
       when(io.start) {
@@ -287,10 +296,53 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
     is(sInRead) {
       when(DMA_doneR_A.reduceLeft(_ && _)){
         state := sExec
-        merger.io.start := true.B
+//        merger.io.start := true.B
       }
     }
-    is(sExec){
+    is(sExec) {
+
+      when(mul.io.scal.ready && mul.io.vec(0).ready && ptrDiff_A.io.deq.bits > 0.U && ptrDiff_B.io.deq.bits > 0.U) {
+        bCnt.inc()
+        when(bCnt.value === ptrDiff_B.io.deq.bits - 1.U) {
+          shapeTransformer_A.io.out(0).ready := true.B
+          bCnt.value := 0.U
+          aCnt.inc()
+          when((aCnt.value === ptrDiff_A.io.deq.bits - 1.U)) {
+            aCnt.value := 0.U
+            shapeTransformer_B.io.out.ready := true.B
+            ptrDiff_A.io.deq.ready := true.B
+            ptrDiff_B.io.deq.ready := true.B
+          }
+        }
+      }
+
+      when(ptrDiff_A.io.deq.bits === 0.U && ptrDiff_B.io.deq.bits > 0.U) {
+        shapeTransformer_B.io.out.ready := true.B
+        bCnt.inc()
+      }
+
+      when(ptrDiff_B.io.deq.bits === 0.U && ptrDiff_A.io.deq.bits > 0.U) {
+        shapeTransformer_A.io.out(0).ready := true.B
+        aCnt.inc()
+        when((aCnt.value === ptrDiff_A.io.deq.bits - 1.U)) {
+          aCnt.value := 0.U
+          shapeTransformer_B.io.out.ready := true.B
+          ptrDiff_A.io.deq.ready := true.B
+          ptrDiff_B.io.deq.ready := true.B
+        }
+      }
+
+      when(ptrDiff_A.io.deq.bits === 0.U && ptrDiff_B.io.deq.bits === 0.U) {
+        ptrDiff_A.io.deq.ready := true.B
+        ptrDiff_B.io.deq.ready := true.B
+      }
+
+      when(outCnt_a.value === io.segCols && outCnt_b.value === io.segCols) {
+        merger.io.eop := true.B
+        state := sDMAwrite
+      }
+    }
+    is(sDMAwrite){
       when(outDMA.io.done) {
         io.done := true.B
         state := sIdle
