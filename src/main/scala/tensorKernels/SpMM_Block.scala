@@ -22,7 +22,7 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class SpMM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p: Parameters)
+class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tpMem = new TensorParams(memTensorType)
 
@@ -49,7 +49,7 @@ class SpMM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p:
     val vme_rd_ptr = Vec(2, new VMEReadMaster)
     val vme_rd_ind = Vec(2, new VMEReadMaster)
     val vme_rd_val = Vec(2, new VMEReadMaster)
-//    val vme_wr = Vec(NumRows, new VMEWriteMaster)
+
     val vme_wr_row = new VMEWriteMaster
     val vme_wr_col = new VMEWriteMaster
     val vme_wr_val = new VMEWriteMaster
@@ -61,9 +61,9 @@ class SpMM_BlockIO(NumRows: Int, memTensorType: String = "none")(implicit val p:
 }
 
 class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
-(NumRows: Int, memTensorType: String = "none")
+(memTensorType: String = "none")
 (segShape: => L)(implicit p: Parameters)
-  extends SpMM_BlockIO(NumRows, memTensorType)(p) {
+  extends SpMM_BlockIO(memTensorType)(p) {
 
 
   val shape = new vecN(1, 0, false)
@@ -90,7 +90,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 
   val merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = true))
 
-  val outDMA = Module(new outDMA_coo(bufSize = 100, memTensorType))
+  val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
 
   val readTensorCnt = Counter(tpMem.memDepth)
 
@@ -98,7 +98,6 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val state = RegInit(sIdle)
 
   io.done := false.B
-//  merger.io.start := false.B
 
   val inDMA_time = Counter(2000)
   val outDMA_time = Counter(2000)
@@ -175,15 +174,11 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   io.vme_wr_val <> outDMA.io.vme_wr_val
 
 
-
-//  merger.io.len := io.len
   outDMA.io.baddr_row := io.outBaseAddr_row
   outDMA.io.baddr_col := io.outBaseAddr_col
   outDMA.io.baddr_val := io.outBaseAddr_val
-  outDMA.io.len := 50.U //io.len
 
-  outDMA.io.start := merger.io.last
-  outDMA.io.last := merger.io.last
+  outDMA.io.eop := merger.io.eopOut
 
   ptrDiff_A.io.deq.ready := false.B
   ptrDiff_B.io.deq.ready := false.B
@@ -220,8 +215,6 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   when(indDMA_B.io.done) {DMA_doneR_B(1) := true.B}
   when(valDMA_B.io.done) {DMA_doneR_B(2) := true.B}
 
-
-
   /* ================================================================== *
     *                        pointer difference                         *
     * ================================================================== */
@@ -245,7 +238,6 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
      *                       loadNodes & mac1Ds                         *
      * ================================================================== */
 
-//  mul.io.scal <> shifter_B.io.out
   mul.io.scal.bits := shapeTransformer_B.io.out.bits
   mul.io.scal.valid := shapeTransformer_B.io.out.valid
   shapeTransformer_B.io.out.ready := false.B
@@ -257,7 +249,6 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   merger.io.in <> mul.io.out(0)
 
   outDMA.io.in <> merger.io.out
-
 
   /* ================================================================== *
       *                        Done Signal                              *
@@ -283,7 +274,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   when(ptrDiff_A.io.deq.fire()){outCnt_a.inc()}
   when(ptrDiff_B.io.deq.fire()){outCnt_b.inc()}
 
-  merger.io.eop := false.B
+  merger.io.eopIn := false.B
 
   switch(state) {
     is(sIdle) {
@@ -296,7 +287,6 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
     is(sInRead) {
       when(DMA_doneR_A.reduceLeft(_ && _)){
         state := sExec
-//        merger.io.start := true.B
       }
     }
     is(sExec) {
@@ -338,7 +328,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
       }
 
       when(outCnt_a.value === io.segCols && outCnt_b.value === io.segCols) {
-        merger.io.eop := true.B
+        merger.io.eopIn := true.B
         state := sDMAwrite
       }
     }

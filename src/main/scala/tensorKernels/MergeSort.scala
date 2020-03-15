@@ -9,13 +9,10 @@ import muxes.{Demux, Mux}
 
 class MergeSortIO(maxStreamLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
-//    val start = Input(Bool( ))
-    val eop = Input(Bool( ))
-//    val len = Input(UInt(log2Ceil(maxStreamLen).W))
+    val eopIn = Input(Bool( ))
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
-    val last = Output(Bool( ))
-//    val done = Output(Bool( ))
+    val eopOut = Output(Bool( ))
   })
 }
 
@@ -33,20 +30,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
   /*===============================================*
    *                Connections                    *
    *===============================================*/
-  val length = RegInit(init = maxStreamLen.U)
-//  when(io.start) {
-//    length := 50.U //io.len
-//  }
-
-  merger(0).io.eopIn := io.eop
-//  val inp_cnt = Counter(maxStreamLen)
-//  when(io.in.fire()) {
-//    inp_cnt.inc()
-//    when(inp_cnt.value === length - 1.U) {
-//      inp_cnt.value := 0.U
-//      merger(0).io.eopIn := true.B
-//    }
-//  }
+  merger(0).io.eopIn := io.eopIn
 
   val sel = RegInit(false.B)
   when(io.in.fire()) {sel := !sel}
@@ -74,23 +58,5 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
   io.out <> merger(num_Merger - 1).io.out1
   merger(num_Merger - 1).io.out2.ready := false.B
 
-  io.last := merger(num_Merger - 1).io.eopOut
-//  io.done := false.B
-
-//  val outCnt = Counter(2 * maxStreamLen)
-//  val switchOn = RegInit(false.B)
-
-//  when(io.start) {
-//    switchOn := true.B
-//    outCnt.value := 0.U
-//  }
-
-//  when(io.out.fire() && switchOn) {outCnt.inc()}
-
-//  when(outCnt.value === length - 1.U) {
-//    io.last := true.B
-//    io.done := true.B
-//    switchOn := false.B
-//  }
-
+  io.eopOut := merger(num_Merger - 1).io.eopOut
 }
