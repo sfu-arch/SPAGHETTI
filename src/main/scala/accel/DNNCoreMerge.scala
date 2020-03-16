@@ -31,8 +31,9 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   /* ================================================================== *
      *                      Basic Block signals                         *
      * ================================================================== */
-  block.io.len := io.vcr.vals(0)
-  block.io.segCols := io.vcr.vals(1)
+  block.io.nnz_A := io.vcr.vals(0)
+  block.io.nnz_B := io.vcr.vals(1)
+  block.io.segSize := io.vcr.vals(2)
 
   /* ================================================================== *
      *                           Connections                            *

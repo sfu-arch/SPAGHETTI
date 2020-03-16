@@ -43,8 +43,9 @@ class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
     val outBaseAddr_col = Input(UInt(mp.addrBits.W))
     val outBaseAddr_val = Input(UInt(mp.addrBits.W))
 
-    val len = Input(UInt(mp.addrBits.W))
-    val segCols = Input(UInt(mp.addrBits.W))
+    val nnz_A = Input(UInt(mp.addrBits.W))
+    val nnz_B = Input(UInt(mp.addrBits.W))
+    val segSize = Input(UInt(mp.addrBits.W))
 
     val vme_rd_ptr = Vec(2, new VMEReadMaster)
     val vme_rd_ind = Vec(2, new VMEReadMaster)
@@ -114,32 +115,32 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
     * ================================================================== */
 
   ptrDMA_A.io.start := io.start
-  ptrDMA_A.io.rowWidth := io.segCols
+  ptrDMA_A.io.rowWidth := io.segSize
   ptrDMA_A.io.depth := 1.U
   ptrDMA_A.io.baddr := io.ptr_A_BaseAddr
 
   indDMA_A.io.start := io.start
-  indDMA_A.io.rowWidth := io.len
+  indDMA_A.io.rowWidth := io.nnz_A
   indDMA_A.io.depth := 1.U
   indDMA_A.io.baddr := io.ind_A_BaseAddr
 
   valDMA_A.io.start := io.start
-  valDMA_A.io.rowWidth := io.len
+  valDMA_A.io.rowWidth := io.nnz_A
   valDMA_A.io.depth := 1.U
   valDMA_A.io.baddr := io.val_A_BaseAddr
 
   ptrDMA_B.io.start := io.start
-  ptrDMA_B.io.rowWidth := io.segCols
+  ptrDMA_B.io.rowWidth := io.segSize
   ptrDMA_B.io.depth := 1.U
   ptrDMA_B.io.baddr := io.ptr_B_BaseAddr
 
   indDMA_B.io.start := io.start
-  indDMA_B.io.rowWidth := io.len
+  indDMA_B.io.rowWidth := io.nnz_B
   indDMA_B.io.depth := 1.U
   indDMA_B.io.baddr := io.ind_B_BaseAddr
 
   valDMA_B.io.start := io.start
-  valDMA_B.io.rowWidth := io.len
+  valDMA_B.io.rowWidth := io.nnz_B
   valDMA_B.io.depth := 1.U
   valDMA_B.io.baddr := io.val_B_BaseAddr
 
@@ -163,11 +164,11 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   /* ================================================================== *
    *                      inDMA_acts & loadNodes                       *
    * ================================================================== */
-  shapeTransformer_A.io.len := io.len //10
-  shapeTransformer_B.io.len := io.len
+  shapeTransformer_A.io.len := io.nnz_A //10
+  shapeTransformer_B.io.len := io.nnz_B
 
-  ptrST_A.io.len := io.segCols
-  ptrST_B.io.len := io.segCols
+  ptrST_A.io.len := io.segSize
+  ptrST_B.io.len := io.segSize
   ptrST_A.io.depth := 1.U
   ptrST_B.io.depth := 1.U
 
@@ -369,7 +370,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
         ptrDiff_B.io.deq.ready := true.B
       }
 
-      when(outCnt_a.value === io.segCols && outCnt_b.value === io.segCols) {
+      when(outCnt_a.value === io.segSize && outCnt_b.value === io.segSize) {
         row_merger.io.eopIn := true.B
         row_merger.io.lastIn := true.B
         state := sDMAwrite
