@@ -55,7 +55,7 @@ class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
     val vme_wr_val = new VMEWriteMaster
 
     val inDMA_time = Output(UInt(mp.addrBits.W))
-    val outDMA_time = Output(UInt(mp.addrBits.W))
+    val outDMA_len = Output(UInt(mp.addrBits.W))
     val merge_time = Output(UInt(mp.addrBits.W))
   })
 }
@@ -106,7 +106,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val merge_time = Counter(2000)
 
   io.inDMA_time := inDMA_time.value
-  io.outDMA_time := outDMA_time.value
+  io.outDMA_len := outDMA.io.outLen
   io.merge_time := merge_time.value
 
   /* ================================================================== *
@@ -253,16 +253,26 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
       *                  row_merger & col_merger                        *
       * ================================================================== */
 
-  val rmValid = RegNext(row_merger.io.out.valid)
-  val rmReady = RegNext(col_merger.io.in.ready)
-  val rmData = RegNext(row_merger.io.out.bits)
+  val rmData = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
+  val rmValid = RegInit(false.B)
+  val rmEop = RegInit(false.B)
+  when(row_merger.io.eopOut) {
+    rmEop := true.B
+  }
+  when(col_merger.io.in.ready && rmEop) {
+    rmEop := false.B
+  }
+  when(col_merger.io.in.ready) {
+    rmData <> row_merger.io.out.bits
+    rmValid := row_merger.io.out.valid
+  }
 
-  col_merger.io.lastIn := RegNext(row_merger.io.lastOut)
+  col_merger.io.lastIn := col_merger.io.in.ready && rmEop
   col_merger.io.eopIn := false.B
-  when((row_merger.io.out.bits.row =/= rmData.row && row_merger.io.out.valid) || RegNext(row_merger.io.eopOut)) {
+  when((row_merger.io.out.bits.row =/= rmData.row && row_merger.io.out.valid) || (col_merger.io.in.ready && rmEop)) {
     col_merger.io.eopIn := true.B
   }
-  row_merger.io.out.ready := rmReady
+  row_merger.io.out.ready := col_merger.io.in.ready
   col_merger.io.in.bits := rmData
   col_merger.io.in.valid := rmValid
 

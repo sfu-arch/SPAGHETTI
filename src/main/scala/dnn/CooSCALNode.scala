@@ -2,10 +2,10 @@ package dnn
 
 import chisel3.util.{Decoupled, Enum, Valid}
 import chisel3.{Bundle, Flipped, Module, Output, RegInit, UInt, printf, when, _}
-import config.{Parameters, XLEN}
+import config.{COLLEN, Parameters, ROWLEN, XLEN}
 import dnn.types.{OperatorCooSCAL, OperatorSCAL}
 import interfaces.{CooDataBundle, CustomDataBundle}
-import node.{Shapes}
+import node.Shapes
 
 class CooSCALFU[L <: Shapes : OperatorCooSCAL](left: => L, lanes: Int, opCode: String)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
@@ -52,11 +52,26 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
   io.vec.map(_.ready).foreach(a => a := io.out.map(_.ready).reduceLeft(_&&_) && io.scal.valid)
 
 
+  val row = for (i <- 0 until left.getLength()) yield {
+    val r = Reg(UInt(p(ROWLEN).W))
+    r
+  }
+  val col = for (i <- 0 until left.getLength()) yield {
+    val c = Reg(UInt(p(COLLEN).W))
+    c
+  }
+
   for (i <- 0 until left.getLength()) {
     io.out(i).bits.data := FU.io.o.bits.asUInt()(p(XLEN) * (i + 1) - 1, p(XLEN) * i)
     io.out(i).valid := FU.io.o.valid
-    io.out(i).bits.row := RegNext(io.vec(i).bits.row)
-    io.out(i).bits.col := RegNext(io.scal.bits.col)
+
+    when(io.out.map(_.ready).reduceLeft(_&&_)) {
+      row(i) := io.vec(i).bits.row
+      col(i) := io.scal.bits.col
+    }
+    io.out(i).bits.row := row(i)
+    io.out(i).bits.col := col(i)
+
     io.out(i).bits.valid := true.B
   }
 }

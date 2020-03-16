@@ -32,6 +32,7 @@ class outDMA_cooIO(memTensorType: String = "none")(implicit val p: Parameters)
     val vme_wr_val = new VMEWriteMaster
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val eop = Input(Bool())
+    val outLen = Output(UInt(mp.addrBits.W))
   })
 }
 
@@ -122,6 +123,8 @@ class outDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Param
     sendingState := false.B
   }
 
+
+  io.outLen := length
 
   when (tensorStore_row.io.done) {doneR(0) := true.B}
   when (tensorStore_col.io.done) {doneR(1) := true.B}

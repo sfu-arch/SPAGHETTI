@@ -40,8 +40,8 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
   io.vcr.ecnt(0).bits := cycle_count.value
 
-  io.vcr.ecnt(1).bits := block.io.inDMA_time
-  io.vcr.ecnt(2).bits := block.io.merge_time
+  io.vcr.ecnt(1).bits := block.io.outDMA_len
+  io.vcr.ecnt(2).bits := block.io.inDMA_time
   io.vcr.ecnt(3).bits := block.io.merge_time
 
   /* ================================================================== *
