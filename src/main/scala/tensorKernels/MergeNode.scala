@@ -11,7 +11,9 @@ import muxes.{Demux, Mux}
 class MergeNodeIO()(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val eopIn = Input(Bool( ))
+    val lastIn = Input(Bool( ))
     val eopOut = Output(Bool( ))
+    val lastOut = Output(Bool( ))
     val in1 = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val in2 = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out1 = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
@@ -31,7 +33,12 @@ class MergeNode(level: Int, ID: Int, rowBased: Boolean)(implicit p: Parameters)
   val popCnt2 = Counter(level + 1)
 
   val flushing = RegInit(false.B)
-  when(io.eopIn) {flushing := true.B}
+  val last = RegInit(false.B)
+
+  when(io.eopIn) {
+    flushing := true.B
+    when(io.lastIn){last := true.B}
+  }
 
   val mux = Module(new Mux(new CooDataBundle(UInt(p(XLEN).W)), Nops = 2))
   mux.io.en := false.B
@@ -104,7 +111,7 @@ class MergeNode(level: Int, ID: Int, rowBased: Boolean)(implicit p: Parameters)
       mux.io.sel := 1.U
       readyDemux.io.sel := 1.U
     }
-  }.otherwise{
+  } else {
     when(queue1.io.deq.valid && queue2.io.deq.valid){
       mux.io.en := true.B
       when((popCnt1.value < level.U) && ((queue1.io.deq.bits.col <= queue2.io.deq.bits.col) || popCnt2.value === level.U)) {
@@ -144,11 +151,17 @@ class MergeNode(level: Int, ID: Int, rowBased: Boolean)(implicit p: Parameters)
   }
 
   io.eopOut := false.B
+  io.lastOut := false.B
+
   when(!queue1.io.deq.valid && !queue2.io.deq.valid && flushing) {
-      flushing := false.B
-      io.eopOut := true.B
-      demuxSel := false.B
-      popCnt1.value := 0.U
-      popCnt2.value := 0.U
+    flushing := false.B
+    io.eopOut := true.B
+    demuxSel := false.B
+    popCnt1.value := 0.U
+    popCnt2.value := 0.U
+    when(last){
+      io.lastOut := true.B
+      last := false.B
     }
+  }
 }

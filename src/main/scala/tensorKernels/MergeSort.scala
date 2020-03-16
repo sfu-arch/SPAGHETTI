@@ -10,9 +10,11 @@ import muxes.{Demux, Mux}
 class MergeSortIO(maxStreamLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val eopIn = Input(Bool( ))
+    val lastIn = Input(Bool( ))
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
     val eopOut = Output(Bool( ))
+    val lastOut = Output(Bool( ))
   })
 }
 
@@ -31,6 +33,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
    *                Connections                    *
    *===============================================*/
   merger(0).io.eopIn := io.eopIn
+  merger(0).io.lastIn := io.lastIn
 
   val sel = RegInit(false.B)
   when(io.in.fire()) {sel := !sel}
@@ -53,10 +56,12 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
     merger(i).io.in1 <> merger(i-1).io.out1
     merger(i).io.in2 <> merger(i-1).io.out2
     merger(i).io.eopIn := merger(i-1).io.eopOut
+    merger(i).io.lastIn := merger(i-1).io.lastOut
   }
 
   io.out <> merger(num_Merger - 1).io.out1
   merger(num_Merger - 1).io.out2.ready := false.B
 
   io.eopOut := merger(num_Merger - 1).io.eopOut
+  io.lastOut := merger(num_Merger - 1).io.lastOut
 }

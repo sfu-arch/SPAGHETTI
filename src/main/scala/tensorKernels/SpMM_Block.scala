@@ -8,7 +8,7 @@ import dnn.CooSCALNode
 import dnn.memory._
 import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorReduction}
 import dnnnode.{CooShapeTransformer, CooShifter, DGEMVNode, MIMOQueue, Mac1D, ShapeTransformer}
-import interfaces.{ControlBundle, CustomDataBundle}
+import interfaces.{ControlBundle, CooDataBundle, CustomDataBundle}
 import node.{Shapes, vecN}
 import shell._
 //import vta.util.config._
@@ -88,7 +88,8 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 
 
-  val merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = true))
+  val row_merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = true))
+  val col_merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = false))
 
   val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
 
@@ -178,7 +179,8 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   outDMA.io.baddr_col := io.outBaseAddr_col
   outDMA.io.baddr_val := io.outBaseAddr_val
 
-  outDMA.io.eop := merger.io.eopOut
+  col_merger.io.lastIn := RegNext(row_merger.io.lastOut)
+  outDMA.io.eop := RegNext(col_merger.io.lastOut)
 
   ptrDiff_A.io.deq.ready := false.B
   ptrDiff_B.io.deq.ready := false.B
@@ -246,9 +248,49 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   mul.io.vec(0).valid := shapeTransformer_A.io.out(0).valid
   shapeTransformer_A.io.out(0).ready := false.B
 
-  merger.io.in <> mul.io.out(0)
+  row_merger.io.in <> mul.io.out(0)
 
-  outDMA.io.in <> merger.io.out
+  val rmValid = RegNext(row_merger.io.out.valid)
+  val rmReady = RegNext(col_merger.io.in.ready)
+  val rmData = RegNext(row_merger.io.out.bits)
+
+//  col_merger.io.in <> row_merger.io.out
+
+  col_merger.io.eopIn := false.B
+  when((row_merger.io.out.bits.row =/= rmData.row && row_merger.io.out.valid) || RegNext(row_merger.io.eopOut)) {
+    col_merger.io.eopIn := true.B
+  }
+  row_merger.io.out.ready := rmReady
+  col_merger.io.in.bits := rmData
+  col_merger.io.in.valid := rmValid
+
+  /* ================================================================== *
+      *                        Done Signal                              *
+      * ================================================================== */
+
+  val cmData = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
+//  val cmData2 = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
+//  val cmValid = Wire(Bool())
+//  cmValid := false.B
+
+//  val cmData = RegNext(col_merger.io.out.bits)
+
+  when(col_merger.io.out.valid){
+    when(cmData.row =/= col_merger.io.out.bits.row || cmData.col =/= col_merger.io.out.bits.col) {
+      cmData <> col_merger.io.out.bits
+    }.elsewhen(cmData.row === col_merger.io.out.bits.row && cmData.col === col_merger.io.out.bits.col){
+      cmData.data := cmData.data + col_merger.io.out.bits.data
+      cmData.row := col_merger.io.out.bits.row
+      cmData.col := col_merger.io.out.bits.col
+      cmData.valid := col_merger.io.out.bits.valid
+    }
+  }
+
+//  outDMA.io.in <> col_merger.io.out
+  outDMA.io.in.bits := cmData
+  outDMA.io.in.valid := RegNext(col_merger.io.out.valid) && !(cmData.row === col_merger.io.out.bits.row && cmData.col === col_merger.io.out.bits.col)
+  col_merger.io.out.ready := outDMA.io.in.ready
+
 
   /* ================================================================== *
       *                        Done Signal                              *
@@ -274,7 +316,8 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   when(ptrDiff_A.io.deq.fire()){outCnt_a.inc()}
   when(ptrDiff_B.io.deq.fire()){outCnt_b.inc()}
 
-  merger.io.eopIn := false.B
+  row_merger.io.eopIn := false.B
+  row_merger.io.lastIn := false.B
 
   switch(state) {
     is(sIdle) {
@@ -328,7 +371,8 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
       }
 
       when(outCnt_a.value === io.segCols && outCnt_b.value === io.segCols) {
-        merger.io.eopIn := true.B
+        row_merger.io.eopIn := true.B
+        row_merger.io.lastIn := true.B
         state := sDMAwrite
       }
     }
