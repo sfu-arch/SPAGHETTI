@@ -62,7 +62,7 @@ class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
 }
 
 class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
-(memTensorType: String = "none")
+(memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
   extends SpMM_BlockIO(memTensorType)(p) {
 
@@ -89,8 +89,8 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 
 
-  val row_merger = Module(new MergeSort(maxStreamLen = 130, ID = 1, rowBased = true))
-  val col_merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = false))
+  val row_merger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
+  val col_merger = Module(new MergeSort(maxStreamLen = maxColLen, ID = 1, rowBased = false))
   val adder = Module(new Adder(ID = 1))
 
   val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
@@ -305,14 +305,14 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   when(state === sInRead) {inDMA_time.inc()}
   when(state === sExec) {merge_time.inc()}
 
-  val bCnt = Counter(100)
-  val aCnt = Counter(100)
+  val bCnt = Counter(maxRowLen)
+  val aCnt = Counter(maxRowLen)
 
   shapeTransformer_B.io.idx := bCnt.value
   shapeTransformer_B.io.numDeq := ptrDiff_B.io.deq.bits
 
-  val outCnt_a = Counter(100)
-  val outCnt_b = Counter(100)
+  val outCnt_a = Counter(maxRowLen)
+  val outCnt_b = Counter(maxRowLen)
   when(ptrDiff_A.io.deq.fire()){outCnt_a.inc()}
   when(ptrDiff_B.io.deq.fire()){outCnt_b.inc()}
 
