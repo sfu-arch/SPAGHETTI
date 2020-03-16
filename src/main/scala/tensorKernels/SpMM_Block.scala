@@ -90,6 +90,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 
   val row_merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = true))
   val col_merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = false))
+  val adder = Module(new Adder(ID = 1))
 
   val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
 
@@ -179,8 +180,6 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   outDMA.io.baddr_col := io.outBaseAddr_col
   outDMA.io.baddr_val := io.outBaseAddr_val
 
-  col_merger.io.lastIn := RegNext(row_merger.io.lastOut)
-  outDMA.io.eop := RegNext(col_merger.io.lastOut)
 
   ptrDiff_A.io.deq.ready := false.B
   ptrDiff_B.io.deq.ready := false.B
@@ -250,12 +249,15 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 
   row_merger.io.in <> mul.io.out(0)
 
+  /* ================================================================== *
+      *                  row_merger & col_merger                        *
+      * ================================================================== */
+
   val rmValid = RegNext(row_merger.io.out.valid)
   val rmReady = RegNext(col_merger.io.in.ready)
   val rmData = RegNext(row_merger.io.out.bits)
 
-//  col_merger.io.in <> row_merger.io.out
-
+  col_merger.io.lastIn := RegNext(row_merger.io.lastOut)
   col_merger.io.eopIn := false.B
   when((row_merger.io.out.bits.row =/= rmData.row && row_merger.io.out.valid) || RegNext(row_merger.io.eopOut)) {
     col_merger.io.eopIn := true.B
@@ -265,32 +267,19 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   col_merger.io.in.valid := rmValid
 
   /* ================================================================== *
-      *                        Done Signal                              *
+      *                    col_merger & Adder                           *
       * ================================================================== */
 
-  val cmData = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
-//  val cmData2 = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
-//  val cmValid = Wire(Bool())
-//  cmValid := false.B
+  adder.io.lastIn := col_merger.io.lastOut
+  adder.io.eopIn := col_merger.io.eopOut
+  adder.io.in <> col_merger.io.out
 
-//  val cmData = RegNext(col_merger.io.out.bits)
+  /* ================================================================== *
+     *                        Adder & outDMA                           *
+     * ================================================================== */
 
-  when(col_merger.io.out.valid){
-    when(cmData.row =/= col_merger.io.out.bits.row || cmData.col =/= col_merger.io.out.bits.col) {
-      cmData <> col_merger.io.out.bits
-    }.elsewhen(cmData.row === col_merger.io.out.bits.row && cmData.col === col_merger.io.out.bits.col){
-      cmData.data := cmData.data + col_merger.io.out.bits.data
-      cmData.row := col_merger.io.out.bits.row
-      cmData.col := col_merger.io.out.bits.col
-      cmData.valid := col_merger.io.out.bits.valid
-    }
-  }
-
-//  outDMA.io.in <> col_merger.io.out
-  outDMA.io.in.bits := cmData
-  outDMA.io.in.valid := RegNext(col_merger.io.out.valid) && !(cmData.row === col_merger.io.out.bits.row && cmData.col === col_merger.io.out.bits.col)
-  col_merger.io.out.ready := outDMA.io.in.ready
-
+  outDMA.io.in <> adder.io.out
+  outDMA.io.eop := adder.io.lastOut
 
   /* ================================================================== *
       *                        Done Signal                              *
