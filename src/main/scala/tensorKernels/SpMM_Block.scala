@@ -89,7 +89,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 
 
-  val row_merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = true))
+  val row_merger = Module(new MergeSort(maxStreamLen = 130, ID = 1, rowBased = true))
   val col_merger = Module(new MergeSort(maxStreamLen = 64, ID = 1, rowBased = false))
   val adder = Module(new Adder(ID = 1))
 
@@ -241,11 +241,11 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
      * ================================================================== */
 
   mul.io.scal.bits := shapeTransformer_B.io.out.bits
-  mul.io.scal.valid := shapeTransformer_B.io.out.valid
+  mul.io.scal.valid := shapeTransformer_B.io.out.valid && ptrDiff_B.io.deq.valid
   shapeTransformer_B.io.out.ready := false.B
 
   mul.io.vec(0).bits := shapeTransformer_A.io.out(0).bits
-  mul.io.vec(0).valid := shapeTransformer_A.io.out(0).valid
+  mul.io.vec(0).valid := shapeTransformer_A.io.out(0).valid && ptrDiff_A.io.deq.valid
   shapeTransformer_A.io.out(0).ready := false.B
 
   row_merger.io.in <> mul.io.out(0)
@@ -319,6 +319,15 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   row_merger.io.eopIn := false.B
   row_merger.io.lastIn := false.B
 
+
+  val colAisZero = Wire(Bool())
+  colAisZero := false.B
+  when(ptrDiff_A.io.deq.bits === 0.U) {colAisZero := true.B}
+
+  val rowBisZero = Wire(Bool())
+  rowBisZero := false.B
+  when(ptrDiff_B.io.deq.bits === 0.U) {rowBisZero := true.B}
+
   switch(state) {
     is(sIdle) {
       when(io.start) {
@@ -334,11 +343,25 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
     }
     is(sExec) {
 
-      when(mul.io.scal.ready && mul.io.vec(0).ready && ptrDiff_A.io.deq.bits > 0.U && ptrDiff_B.io.deq.bits > 0.U) {
-        bCnt.inc()
-        when(bCnt.value === ptrDiff_B.io.deq.bits - 1.U) {
+      when(ptrDiff_A.io.deq.valid && ptrDiff_B.io.deq.valid){
+        when(mul.io.scal.ready && mul.io.vec(0).ready && !colAisZero && !rowBisZero) {
+          bCnt.inc()
+          when(bCnt.value === ptrDiff_B.io.deq.bits - 1.U) {
+            shapeTransformer_A.io.out(0).ready := true.B
+            bCnt.value := 0.U
+            aCnt.inc()
+            when((aCnt.value === ptrDiff_A.io.deq.bits - 1.U)) {
+              aCnt.value := 0.U
+              shapeTransformer_B.io.out.ready := true.B
+              ptrDiff_A.io.deq.ready := true.B
+              ptrDiff_B.io.deq.ready := true.B
+            }
+          }
+        }.elsewhen(colAisZero && !rowBisZero) {
+          shapeTransformer_B.io.out.ready := true.B
+          bCnt.inc()
+        }.elsewhen(rowBisZero && !colAisZero) {
           shapeTransformer_A.io.out(0).ready := true.B
-          bCnt.value := 0.U
           aCnt.inc()
           when((aCnt.value === ptrDiff_A.io.deq.bits - 1.U)) {
             aCnt.value := 0.U
@@ -346,28 +369,10 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
             ptrDiff_A.io.deq.ready := true.B
             ptrDiff_B.io.deq.ready := true.B
           }
-        }
-      }
-
-      when(ptrDiff_A.io.deq.bits === 0.U && ptrDiff_B.io.deq.bits > 0.U) {
-        shapeTransformer_B.io.out.ready := true.B
-        bCnt.inc()
-      }
-
-      when(ptrDiff_B.io.deq.bits === 0.U && ptrDiff_A.io.deq.bits > 0.U) {
-        shapeTransformer_A.io.out(0).ready := true.B
-        aCnt.inc()
-        when((aCnt.value === ptrDiff_A.io.deq.bits - 1.U)) {
-          aCnt.value := 0.U
-          shapeTransformer_B.io.out.ready := true.B
+        }.elsewhen(colAisZero && rowBisZero) {
           ptrDiff_A.io.deq.ready := true.B
           ptrDiff_B.io.deq.ready := true.B
         }
-      }
-
-      when(ptrDiff_A.io.deq.bits === 0.U && ptrDiff_B.io.deq.bits === 0.U) {
-        ptrDiff_A.io.deq.ready := true.B
-        ptrDiff_B.io.deq.ready := true.B
       }
 
       when(outCnt_a.value === io.segSize && outCnt_b.value === io.segSize) {
