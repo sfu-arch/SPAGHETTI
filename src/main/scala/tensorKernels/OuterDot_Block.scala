@@ -7,14 +7,14 @@ import config._
 import dnn.CooSCALNode
 import dnn.memory._
 import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorReduction}
-import dnnnode.{CooShapeTransformer, CooShifter, DGEMVNode, MIMOQueue, Mac1D, ShapeTransformer}
-import interfaces.{ControlBundle, CooDataBundle, CustomDataBundle}
+import dnnnode.{CooShapeTransformer, CooShifter, ShapeTransformer}
+import interfaces.CooDataBundle
 import node.{Shapes, vecN}
 import shell._
 //import vta.util.config._
 
 
-/** TensorLoad.
+/** OuterProduct Block
   *
   * Load 1D and 2D tensors from main memory (DRAM) to input/weight
   * scratchpads (SRAM). Also, there is support for zero padding, while
@@ -22,7 +22,7 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
+class OuterDot_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tpMem = new TensorParams(memTensorType)
 
@@ -51,21 +51,18 @@ class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
     val vme_rd_ind = Vec(2, new VMEReadMaster)
     val vme_rd_val = Vec(2, new VMEReadMaster)
 
-    val vme_wr_row = new VMEWriteMaster
-    val vme_wr_col = new VMEWriteMaster
-    val vme_wr_val = new VMEWriteMaster
+    val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
+    val eopOut = Output(Bool( ))
 
     val inDMA_time = Output(UInt(mp.addrBits.W))
-    val outDMA_len = Output(UInt(mp.addrBits.W))
     val merge_time = Output(UInt(mp.addrBits.W))
   })
 }
 
-class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
+class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
 (memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
-  extends SpMM_BlockIO(memTensorType)(p) {
-
+  extends OuterDot_BlockIO(memTensorType)(p) {
 
   val shape = new vecN(1, 0, false)
 
@@ -90,23 +87,16 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 
 
   val row_merger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
-  val col_merger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false))
 
-  val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
-
-  val readTensorCnt = Counter(tpMem.memDepth)
-
-  val sIdle :: sInRead :: sExec :: sDMAwrite :: Nil = Enum(4)
+  val sIdle :: sInRead :: sExec :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
   io.done := false.B
 
   val inDMA_time = Counter(2000)
-  val outDMA_time = Counter(2000)
   val merge_time = Counter(2000)
 
   io.inDMA_time := inDMA_time.value
-  io.outDMA_len := outDMA.io.outLen
   io.merge_time := merge_time.value
 
   /* ================================================================== *
@@ -163,23 +153,13 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   /* ================================================================== *
    *                      inDMA_acts & loadNodes                       *
    * ================================================================== */
-  shapeTransformer_A.io.len := io.nnz_A //10
+  shapeTransformer_A.io.len := io.nnz_A
   shapeTransformer_B.io.len := io.nnz_B
 
   ptrST_A.io.len := io.segSize
   ptrST_B.io.len := io.segSize
   ptrST_A.io.depth := 1.U
   ptrST_B.io.depth := 1.U
-
-  io.vme_wr_row <> outDMA.io.vme_wr_row
-  io.vme_wr_col <> outDMA.io.vme_wr_col
-  io.vme_wr_val <> outDMA.io.vme_wr_val
-
-
-  outDMA.io.baddr_row := io.outBaseAddr_row
-  outDMA.io.baddr_col := io.outBaseAddr_col
-  outDMA.io.baddr_val := io.outBaseAddr_val
-
 
   ptrDiff_A.io.deq.ready := false.B
   ptrDiff_B.io.deq.ready := false.B
@@ -236,7 +216,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   ptrST_B.io.out(0)(0).ready := ptrDiff_B.io.enq.ready
 
   /* ================================================================== *
-     *                       loadNodes & mac1Ds                         *
+     *                       multiplier and st                          *
      * ================================================================== */
 
   mul.io.scal.bits := shapeTransformer_B.io.out.bits
@@ -250,25 +230,18 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   row_merger.io.in <> mul.io.out(0)
 
   /* ================================================================== *
-      *                  row_merger & col_merger                        *
-      * ================================================================== */
-  col_merger.io.eopIn := row_merger.io.eopOut
-  col_merger.io.in <> row_merger.io.out
+    *                         row merger output                         *
+    * ================================================================== */
+
+  io.out <> row_merger.io.out
+  io.eopOut := row_merger.io.eopOut
 
   /* ================================================================== *
-     *                    col_merger & outDMA                           *
-     * ================================================================== */
-
-  outDMA.io.in <> col_merger.io.out
-  outDMA.io.eop := col_merger.io.lastOut
-
-  /* ================================================================== *
-      *                        Done Signal                              *
-      * ================================================================== */
+    *                          State Machine                            *
+    * ================================================================== */
 
   when(state === sIdle){
     inDMA_time.value := 0.U
-    outDMA_time.value := 0.U
     merge_time.value := 0.U
   }
 
@@ -348,15 +321,9 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
       when(outCnt_a.value === io.segSize && outCnt_b.value === io.segSize) {
         row_merger.io.eopIn := true.B
         row_merger.io.lastIn := true.B
-        state := sDMAwrite
-      }
-    }
-    is(sDMAwrite){
-      when(outDMA.io.done) {
-        io.done := true.B
         state := sIdle
       }
-
     }
+
   }
 }
