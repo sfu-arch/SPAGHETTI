@@ -29,7 +29,7 @@ class OuterDot_BlockIO(memTensorType: String = "none")(implicit val p: Parameter
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
-    val done = Output(Bool())
+//    val done = Output(Bool())
 
     val ind_A_BaseAddr = Input(UInt(mp.addrBits.W))
     val val_A_BaseAddr = Input(UInt(mp.addrBits.W))
@@ -39,9 +39,6 @@ class OuterDot_BlockIO(memTensorType: String = "none")(implicit val p: Parameter
     val val_B_BaseAddr = Input(UInt(mp.addrBits.W))
     val ptr_B_BaseAddr = Input(UInt(mp.addrBits.W))
 
-    val outBaseAddr_row = Input(UInt(mp.addrBits.W))
-    val outBaseAddr_col = Input(UInt(mp.addrBits.W))
-    val outBaseAddr_val = Input(UInt(mp.addrBits.W))
 
     val nnz_A = Input(UInt(mp.addrBits.W))
     val nnz_B = Input(UInt(mp.addrBits.W))
@@ -92,7 +89,7 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
   val sIdle :: sInRead :: sExec :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-  io.done := false.B
+//  io.done := false.B
 
   val inDMA_time = Counter(2000)
   val merge_time = Counter(2000)
