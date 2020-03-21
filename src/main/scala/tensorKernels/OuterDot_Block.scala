@@ -53,6 +53,7 @@ class OuterDot_BlockIO(memTensorType: String = "none")(implicit val p: Parameter
 
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
     val eopOut = Output(Bool( ))
+    val lastOut = Output(Bool( ))
 
     val inDMA_time = Output(UInt(mp.addrBits.W))
     val merge_time = Output(UInt(mp.addrBits.W))
@@ -86,7 +87,7 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 
 
-  val row_merger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
+//  val row_merger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
 
   val sIdle :: sInRead :: sExec :: Nil = Enum(3)
   val state = RegInit(sIdle)
@@ -227,14 +228,14 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
   mul.io.vec(0).valid := shapeTransformer_A.io.out(0).valid && ptrDiff_A.io.deq.valid
   shapeTransformer_A.io.out(0).ready := false.B
 
-  row_merger.io.in <> mul.io.out(0)
+  io.out <> mul.io.out(0)
 
   /* ================================================================== *
     *                         row merger output                         *
     * ================================================================== */
 
-  io.out <> row_merger.io.out
-  io.eopOut := row_merger.io.eopOut
+//  io.out <> row_merger.io.out
+//  io.eopOut := row_merger.io.eopOut
 
   /* ================================================================== *
     *                          State Machine                            *
@@ -259,8 +260,10 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
   when(ptrDiff_A.io.deq.fire()){outCnt_a.inc()}
   when(ptrDiff_B.io.deq.fire()){outCnt_b.inc()}
 
-  row_merger.io.eopIn := false.B
-  row_merger.io.lastIn := false.B
+//  row_merger.io.eopIn := false.B
+//  row_merger.io.lastIn := false.B
+  io.eopOut := false.B
+  io.lastOut := false.B
 
 
   val colAisZero = Wire(Bool())
@@ -319,8 +322,8 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
       }
 
       when(outCnt_a.value === io.segSize && outCnt_b.value === io.segSize) {
-        row_merger.io.eopIn := true.B
-        row_merger.io.lastIn := true.B
+        io.eopOut := true.B
+        io.lastOut := true.B
         state := sIdle
       }
     }
