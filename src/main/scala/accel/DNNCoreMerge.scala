@@ -22,11 +22,13 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
   val cycle_count = new Counter(2000)
 
+  val numSegments = 3
+
   val S = new FType(8, 24)
 //  val shape = new FPvecN(2, S, 0)
   val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block("inp", maxRowLen = 100, maxColLen = 64)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 100, maxColLen = 64)(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *
@@ -50,14 +52,16 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
     * ================================================================== */
 
 
-  io.vme.rd(0) <> block.io.vme_rd_ptr(0)
-  io.vme.rd(1) <> block.io.vme_rd_ind(0)
-  io.vme.rd(2) <> block.io.vme_rd_val(0)
 
-  io.vme.rd(3) <> block.io.vme_rd_ptr(1)
-  io.vme.rd(4) <> block.io.vme_rd_ind(1)
-  io.vme.rd(5) <> block.io.vme_rd_val(1)
+  for (i <- 0 until numSegments) {
+    io.vme.rd(6 * i + 0) <> block.io.vme_rd_ptr(2 * i + 0)
+    io.vme.rd(6 * i + 1) <> block.io.vme_rd_ind(2 * i + 0)
+    io.vme.rd(6 * i + 2) <> block.io.vme_rd_val(2 * i + 0)
 
+    io.vme.rd(6 * i + 3) <> block.io.vme_rd_ptr(2 * i + 1)
+    io.vme.rd(6 * i + 4) <> block.io.vme_rd_ind(2 * i + 1)
+    io.vme.rd(6 * i + 5) <> block.io.vme_rd_val(2 * i + 1)
+  }
 
   io.vme.wr(0) <> block.io.vme_wr_row
   io.vme.wr(1) <> block.io.vme_wr_col

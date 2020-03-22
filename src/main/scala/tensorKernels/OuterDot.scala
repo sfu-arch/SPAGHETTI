@@ -1,4 +1,3 @@
-
 package tensorKernels
 
 import chisel3._
@@ -22,14 +21,13 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class OuterDot_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
+class OuterDotIO(memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tpMem = new TensorParams(memTensorType)
 
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
-//    val done = Output(Bool())
 
     val ind_A_BaseAddr = Input(UInt(mp.addrBits.W))
     val val_A_BaseAddr = Input(UInt(mp.addrBits.W))
@@ -57,10 +55,10 @@ class OuterDot_BlockIO(memTensorType: String = "none")(implicit val p: Parameter
   })
 }
 
-class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
+class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
 (memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
-  extends OuterDot_BlockIO(memTensorType)(p) {
+  extends OuterDotIO(memTensorType)(p) {
 
   val shape = new vecN(1, 0, false)
 
@@ -83,13 +81,9 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
 
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 
-
-//  val row_merger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
-
   val sIdle :: sInRead :: sExec :: Nil = Enum(3)
   val state = RegInit(sIdle)
 
-//  io.done := false.B
 
   val inDMA_time = Counter(2000)
   val merge_time = Counter(2000)
@@ -228,13 +222,6 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
   io.out <> mul.io.out(0)
 
   /* ================================================================== *
-    *                         row merger output                         *
-    * ================================================================== */
-
-//  io.out <> row_merger.io.out
-//  io.eopOut := row_merger.io.eopOut
-
-  /* ================================================================== *
     *                          State Machine                            *
     * ================================================================== */
 
@@ -257,11 +244,8 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
   when(ptrDiff_A.io.deq.fire()){outCnt_a.inc()}
   when(ptrDiff_B.io.deq.fire()){outCnt_b.inc()}
 
-//  row_merger.io.eopIn := false.B
-//  row_merger.io.lastIn := false.B
   io.eopOut := false.B
   io.lastOut := false.B
-
 
   val colAisZero = Wire(Bool())
   colAisZero := false.B
@@ -324,6 +308,5 @@ class OuterDot_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCoo
         state := sIdle
       }
     }
-
   }
 }

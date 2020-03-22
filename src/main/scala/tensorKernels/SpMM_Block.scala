@@ -1,17 +1,12 @@
-
 package tensorKernels
 
 import chisel3._
 import chisel3.util._
 import config._
-import dnn.CooSCALNode
 import dnn.memory._
 import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorReduction}
-import dnnnode.{CooShapeTransformer, CooShifter, DGEMVNode, MIMOQueue, Mac1D, ShapeTransformer}
-import interfaces.{ControlBundle, CooDataBundle, CustomDataBundle}
 import node.{Shapes, vecN}
 import shell._
-//import vta.util.config._
 
 
 /** TensorLoad.
@@ -22,7 +17,7 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
+class SpMM_BlockIO(numSegments: Int, memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tpMem = new TensorParams(memTensorType)
 
@@ -47,9 +42,9 @@ class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
     val nnz_B = Input(UInt(mp.addrBits.W))
     val segSize = Input(UInt(mp.addrBits.W))
 
-    val vme_rd_ptr = Vec(2, new VMEReadMaster)
-    val vme_rd_ind = Vec(2, new VMEReadMaster)
-    val vme_rd_val = Vec(2, new VMEReadMaster)
+    val vme_rd_ptr = Vec(2 * numSegments, new VMEReadMaster)
+    val vme_rd_ind = Vec(2 * numSegments, new VMEReadMaster)
+    val vme_rd_val = Vec(2 * numSegments, new VMEReadMaster)
 
     val vme_wr_row = new VMEWriteMaster
     val vme_wr_col = new VMEWriteMaster
@@ -62,17 +57,26 @@ class SpMM_BlockIO(memTensorType: String = "none")(implicit val p: Parameters)
 }
 
 class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
-(memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
+(numSegments: Int, memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
-  extends SpMM_BlockIO(memTensorType)(p) {
+  extends SpMM_BlockIO(numSegments = numSegments, memTensorType)(p) {
 
-  val outDot = Module(new OuterDot_Block(memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(segShape))
 
-  val row_merger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
+  val seg = for (i <- 0 until numSegments) yield {
+    val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(segShape))
+    outDot
+  }
+
+  val row_merger = for (i <- 0 until numSegments) yield {
+    val rowMerger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
+    rowMerger
+  }
+
+  val arbiter = Module(new WeightedArbiter(n = numSegments))
+
   val col_merger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false))
 
   val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
-
 
   val inDMA_time = Counter(2000)
   val outDMA_time = Counter(2000)
@@ -85,28 +89,38 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
     * ================================================================== */
-  outDot.io.start := io.start
+  for (i <- 0 until numSegments) {
+    seg(i).io.start := io.start
 
-  outDot.io.ind_A_BaseAddr := io.ind_A_BaseAddr
-  outDot.io.ptr_A_BaseAddr := io.ptr_A_BaseAddr
-  outDot.io.val_A_BaseAddr := io.val_A_BaseAddr
+    seg(i).io.ind_A_BaseAddr := io.ind_A_BaseAddr
+    seg(i).io.ptr_A_BaseAddr := io.ptr_A_BaseAddr
+    seg(i).io.val_A_BaseAddr := io.val_A_BaseAddr
 
-  outDot.io.ind_B_BaseAddr := io.ind_B_BaseAddr
-  outDot.io.ptr_B_BaseAddr := io.ptr_B_BaseAddr
-  outDot.io.val_B_BaseAddr := io.val_B_BaseAddr
+    seg(i).io.ind_B_BaseAddr := io.ind_B_BaseAddr
+    seg(i).io.ptr_B_BaseAddr := io.ptr_B_BaseAddr
+    seg(i).io.val_B_BaseAddr := io.val_B_BaseAddr
 
-  outDot.io.nnz_A := io.nnz_A
-  outDot.io.nnz_B := io.nnz_B
-  outDot.io.segSize := io.segSize
+    seg(i).io.nnz_A := io.nnz_A
+    seg(i).io.nnz_B := io.nnz_B
+    seg(i).io.segSize := io.segSize
 
-  io.vme_rd_ind(0) <> outDot.io.vme_rd_ind(0)
-  io.vme_rd_ind(1) <> outDot.io.vme_rd_ind(1)
+    io.vme_rd_ind(2 * i + 0) <> seg(i).io.vme_rd_ind(0)
+    io.vme_rd_ind(2 * i + 1) <> seg(i).io.vme_rd_ind(1)
 
-  io.vme_rd_ptr(0) <> outDot.io.vme_rd_ptr(0)
-  io.vme_rd_ptr(1) <> outDot.io.vme_rd_ptr(1)
+    io.vme_rd_ptr(2 * i + 0) <> seg(i).io.vme_rd_ptr(0)
+    io.vme_rd_ptr(2 * i + 1) <> seg(i).io.vme_rd_ptr(1)
 
-  io.vme_rd_val(0) <> outDot.io.vme_rd_val(0)
-  io.vme_rd_val(1) <> outDot.io.vme_rd_val(1)
+    io.vme_rd_val(2 * i + 0) <> seg(i).io.vme_rd_val(0)
+    io.vme_rd_val(2 * i + 1) <> seg(i).io.vme_rd_val(1)
+
+    row_merger(i).io.in <> seg(i).io.out
+    row_merger(i).io.eopIn := seg(i).io.eopOut
+    row_merger(i).io.lastIn := seg(i).io.lastOut
+
+    arbiter.io.in(i) <> row_merger(i).io.out
+    arbiter.io.eopIn(i) := row_merger(i).io.eopOut
+    arbiter.io.lastIn(i) := row_merger(i).io.lastOut
+  }
 
   io.vme_wr_row <> outDMA.io.vme_wr_row
   io.vme_wr_col <> outDMA.io.vme_wr_col
@@ -120,12 +134,9 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
     *         outDot -> row_merger -> col_merger -> outDMA              *
     * ================================================================== */
 
-  row_merger.io.in <> outDot.io.out
-  row_merger.io.eopIn := outDot.io.eopOut
-  row_merger.io.lastIn := outDot.io.lastOut
 
-  col_merger.io.eopIn := row_merger.io.eopOut
-  col_merger.io.in <> row_merger.io.out
+  col_merger.io.eopIn := arbiter.io.eopOut
+  col_merger.io.in <> arbiter.io.out
 
   outDMA.io.in <> col_merger.io.out
   outDMA.io.eop := col_merger.io.lastOut
