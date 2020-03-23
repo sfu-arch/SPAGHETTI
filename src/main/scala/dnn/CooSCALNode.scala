@@ -32,16 +32,16 @@ class CooSCALIO[L <: Shapes](left: => L)(implicit val p: Parameters) extends Mod
   })
 }
 
-class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String)(left: => L)(implicit p: Parameters)
-  extends CooSCALIO(left)(p) {
+class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String)(shape: => L)(implicit p: Parameters)
+  extends CooSCALIO(shape)(p) {
 
-  require(left.getLength() == N, "shape does not match with number of multipliers")
+  require(shape.getLength() == N, "shape does not match with number of multipliers")
 
  /*===============================================*
    *            Latch inputs. Wire up left       *
    *===============================================*/
-  val FU = Module(new CooSCALFU(left, lanes = left.getLength(), opCode))
-  FU.io.a.bits := VecInit(io.vec.map(_.bits.data.asUInt())).asTypeOf(left)
+  val FU = Module(new CooSCALFU(shape, lanes = shape.getLength(), opCode))
+  FU.io.a.bits := VecInit(io.vec.map(_.bits.data.asUInt())).asTypeOf(shape)
   FU.io.b.bits := io.scal.bits.data
 
   FU.io.a.valid := io.vec.map(_.valid).reduceLeft(_&&_)
@@ -52,16 +52,16 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
   io.vec.map(_.ready).foreach(a => a := io.out.map(_.ready).reduceLeft(_&&_) && io.scal.valid)
 
 
-  val row = for (i <- 0 until left.getLength()) yield {
+  val row = for (i <- 0 until shape.getLength()) yield {
     val r = Reg(UInt(p(ROWLEN).W))
     r
   }
-  val col = for (i <- 0 until left.getLength()) yield {
+  val col = for (i <- 0 until shape.getLength()) yield {
     val c = Reg(UInt(p(COLLEN).W))
     c
   }
 
-  for (i <- 0 until left.getLength()) {
+  for (i <- 0 until shape.getLength()) {
     io.out(i).bits.data := FU.io.o.bits.asUInt()(p(XLEN) * (i + 1) - 1, p(XLEN) * i)
     io.out(i).valid := FU.io.o.valid
 

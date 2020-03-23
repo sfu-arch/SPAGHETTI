@@ -3,7 +3,9 @@ package tensorKernels
 import chisel3.util.Decoupled
 import chisel3.{Flipped, Module, UInt, _}
 import config.{Parameters, XLEN}
+import dnn.types.OperatorNRSCAL
 import interfaces.CooDataBundle
+import node.{Shapes, vecN}
 
 class MergeAddIO(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
@@ -15,7 +17,7 @@ class MergeAddIO(implicit val p: Parameters) extends Module {
   })
 }
 
-class MergeAdd(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Parameters)
+class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBased: Boolean)(shape: => L)(implicit p: Parameters)
   extends MergeAddIO()(p) {
 
   /*===============================================*
@@ -23,7 +25,7 @@ class MergeAdd(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Parame
    *===============================================*/
 
   val merger = Module(new MergeSort(maxStreamLen = maxStreamLen, ID = 1, rowBased = rowBased))
-  val adder = Module(new Adder(ID = 1))
+  val adder = Module(new Adder(ID = 1)(shape))
 
   val data = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
   val valid = RegInit(false.B)

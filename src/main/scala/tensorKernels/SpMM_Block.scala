@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import config._
 import dnn.memory._
-import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorReduction}
+import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorNRSCAL, OperatorReduction}
 import node.{Shapes, vecN}
 import shell._
 
@@ -56,7 +56,7 @@ class SpMM_BlockIO(numSegments: Int, memTensorType: String = "none")(implicit va
   })
 }
 
-class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
+class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : OperatorCooSCAL]
 (numSegments: Int, memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
   extends SpMM_BlockIO(numSegments = numSegments, memTensorType)(p) {
@@ -74,7 +74,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL
 
   val arbiter = Module(new WeightedArbiter(n = numSegments))
 
-  val col_merger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false))
+  val col_merger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
 
   val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
 

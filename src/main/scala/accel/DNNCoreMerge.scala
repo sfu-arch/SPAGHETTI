@@ -25,8 +25,8 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   val numSegments = 1
 
   val S = new FType(8, 24)
-//  val shape = new FPvecN(2, S, 0)
-  val shape = new vecN(1, 0, false)
+  val shape = new FPvecN(1, S, 0)
+//  val shape = new vecN(1, 0, false)
 
   val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 100, maxColLen = 64)(shape))
 
