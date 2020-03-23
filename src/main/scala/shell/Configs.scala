@@ -22,7 +22,7 @@ class VCRSimParams(val num_ptrs: Int = 9, val num_vals: Int = 3,
   * These parameters are used on VME interfaces and modules.
   */
 class VMESimParams() extends VMEParams {
-  override val nReadClients: Int = 18
+  override val nReadClients: Int = 6
   override val nWriteClients: Int = 3
   require(nReadClients > 0,
     s"\n\n[Dandelion] [VMEParams] nReadClients must be larger than 0\n\n")
