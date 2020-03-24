@@ -76,7 +76,7 @@ class StoreQueue[T <: Data](gen: T,
   when (do_deq) {
 //    deq_ptr.value := deq_ptr.value + NumOuts.U
     deq_ptr.value := (deq_ptr.value + NumOuts.U) % entries.U
-    when (last) {
+    when (last || io.last) {
       deq_ptr.value := 0.U
       enq_ptr.value := 0.U
       last := false.B

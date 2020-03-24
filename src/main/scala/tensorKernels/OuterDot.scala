@@ -93,7 +93,7 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
     * ================================================================== */
 
   ptrDMA_A.io.start := io.start
-  ptrDMA_A.io.rowWidth := io.segSize
+  ptrDMA_A.io.rowWidth := io.segSize + 1.U
   ptrDMA_A.io.depth := 1.U
   ptrDMA_A.io.baddr := io.ptr_A_BaseAddr
 
@@ -108,7 +108,7 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   valDMA_A.io.baddr := io.val_A_BaseAddr
 
   ptrDMA_B.io.start := io.start
-  ptrDMA_B.io.rowWidth := io.segSize
+  ptrDMA_B.io.rowWidth := io.segSize + 1.U
   ptrDMA_B.io.depth := 1.U
   ptrDMA_B.io.baddr := io.ptr_B_BaseAddr
 
