@@ -18,7 +18,7 @@
  */
 
 module VTAHostDPI #
-( parameter ADDR_BITS = 8,
+( parameter ADDR_BITS = 16,
   parameter DATA_BITS = 32
 )
 (
@@ -37,7 +37,7 @@ module VTAHostDPI #
   (
     output byte unsigned req_valid,
     output byte unsigned req_opcode,
-    output byte unsigned req_addr,
+    output shortint unsigned req_addr,
     output int  unsigned req_value,
     input  byte unsigned req_deq,
     input  byte unsigned resp_valid,
@@ -46,12 +46,13 @@ module VTAHostDPI #
 
   typedef logic        dpi1_t;
   typedef logic  [7:0] dpi8_t;
+  typedef logic  [15:0] dpi16_t;
   typedef logic [31:0] dpi32_t;
 
   dpi1_t  __reset;
   dpi8_t  __req_valid;
   dpi8_t  __req_opcode;
-  dpi8_t  __req_addr;
+  dpi16_t  __req_addr;
   dpi32_t __req_value;
   dpi8_t  __req_deq;
   dpi8_t  __resp_valid;

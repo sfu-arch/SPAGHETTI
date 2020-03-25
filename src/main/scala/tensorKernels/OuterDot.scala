@@ -209,14 +209,14 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   when(state === sInRead) {inDMA_time.inc()}
   when(state === sExec) {merge_time.inc()}
 
-  val bCnt = Counter(log2Ceil(maxRowLen))
-  val aCnt = Counter(log2Ceil(maxRowLen))
+  val bCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
+  val aCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
 
   shapeTransformer_B.io.idx := bCnt.value
   shapeTransformer_B.io.numDeq := ptrST_B.io.deq(0).bits
 
-  val outCnt_a = Counter(log2Ceil(maxRowLen))
-  val outCnt_b = Counter(log2Ceil(maxRowLen))
+  val outCnt_a = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
+  val outCnt_b = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
   when(ptrST_A.io.deq(0).fire()){outCnt_a.inc()}
   when(ptrST_B.io.deq(0).fire()){outCnt_b.inc()}
 
