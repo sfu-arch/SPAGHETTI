@@ -57,7 +57,7 @@ class WeightedArbiter(n: Int)(implicit p: Parameters)
   grant(n-1) := true.B
 
   for (i <- n-1 to 0 by -1) {
-    when (valid.reduceLeft(_&&_) && io.in(i).bits.row < io.in(chosen).bits.row ) {
+    when (valid.reduceLeft(_&&_) && io.in(i).bits.row < io.in(chosen).bits.row && !isFinished(i)) {
       grant.foreach(a => a := false.B)
       grant(i) := true.B
       chosen = i

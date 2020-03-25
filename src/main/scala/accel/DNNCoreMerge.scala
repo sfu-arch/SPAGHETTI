@@ -21,20 +21,23 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
   val cycle_count = new Counter(100000000)
 
-  val numSegments = 1
+  val numSegments = 5
 
   val S = new FType(8, 24)
   val shape = new FPvecN(1, S, 0)
 //  val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 40000, maxColLen = 4000)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 8000, maxColLen = 4000)(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *
      * ================================================================== */
-  block.io.nnz_A := io.vcr.vals(0)
-  block.io.nnz_B := io.vcr.vals(1)
-  block.io.segSize := io.vcr.vals(2)
+  for (i <- 0 until numSegments) {
+    block.io.nnz_A(i) := io.vcr.vals(i * 3 + 0)
+    block.io.nnz_B(i) := io.vcr.vals(i * 3 + 1)
+    block.io.segSize(i) := io.vcr.vals(i * 3 + 2)
+
+  }
 
   /* ================================================================== *
      *                           Connections                            *
@@ -68,17 +71,20 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
   block.io.start := false.B
 
-  block.io.ptr_A_BaseAddr := io.vcr.ptrs(0)
-  block.io.ind_A_BaseAddr := io.vcr.ptrs(1)
-  block.io.val_A_BaseAddr := io.vcr.ptrs(2)
+  for (i <- 0 until numSegments) {
+    block.io.ptr_A_BaseAddr(i) := io.vcr.ptrs(i * 6 + 0)
+    block.io.ind_A_BaseAddr(i) := io.vcr.ptrs(i * 6 + 1)
+    block.io.val_A_BaseAddr(i) := io.vcr.ptrs(i * 6 + 2)
 
-  block.io.ptr_B_BaseAddr := io.vcr.ptrs(3)
-  block.io.ind_B_BaseAddr := io.vcr.ptrs(4)
-  block.io.val_B_BaseAddr := io.vcr.ptrs(5)
+    block.io.ptr_B_BaseAddr(i) := io.vcr.ptrs(i * 6 + 3)
+    block.io.ind_B_BaseAddr(i) := io.vcr.ptrs(i * 6 + 4)
+    block.io.val_B_BaseAddr(i) := io.vcr.ptrs(i * 6 + 5)
+  }
 
-  block.io.outBaseAddr_row := io.vcr.ptrs(6)
-  block.io.outBaseAddr_col := io.vcr.ptrs(7)
-  block.io.outBaseAddr_val := io.vcr.ptrs(8)
+
+  block.io.outBaseAddr_row := io.vcr.ptrs(numSegments * 6 + 0)
+  block.io.outBaseAddr_col := io.vcr.ptrs(numSegments * 6 + 1)
+  block.io.outBaseAddr_val := io.vcr.ptrs(numSegments * 6 + 2)
 
   val sIdle :: sExec :: sFinish :: Nil = Enum(3)
 

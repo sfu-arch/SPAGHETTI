@@ -26,21 +26,21 @@ class SpMM_BlockIO(numSegments: Int, memTensorType: String = "none")(implicit va
     val start = Input(Bool())
     val done = Output(Bool())
 
-    val ind_A_BaseAddr = Input(UInt(mp.addrBits.W))
-    val val_A_BaseAddr = Input(UInt(mp.addrBits.W))
-    val ptr_A_BaseAddr = Input(UInt(mp.addrBits.W))
+    val ind_A_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
+    val val_A_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
+    val ptr_A_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
 
-    val ind_B_BaseAddr = Input(UInt(mp.addrBits.W))
-    val val_B_BaseAddr = Input(UInt(mp.addrBits.W))
-    val ptr_B_BaseAddr = Input(UInt(mp.addrBits.W))
+    val ind_B_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
+    val val_B_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
+    val ptr_B_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
 
     val outBaseAddr_row = Input(UInt(mp.addrBits.W))
     val outBaseAddr_col = Input(UInt(mp.addrBits.W))
     val outBaseAddr_val = Input(UInt(mp.addrBits.W))
 
-    val nnz_A = Input(UInt(mp.addrBits.W))
-    val nnz_B = Input(UInt(mp.addrBits.W))
-    val segSize = Input(UInt(mp.addrBits.W))
+    val nnz_A = Vec(numSegments, Input(UInt(mp.addrBits.W)))
+    val nnz_B = Vec(numSegments, Input(UInt(mp.addrBits.W)))
+    val segSize = Vec(numSegments, Input(UInt(mp.addrBits.W)))
 
     val vme_rd_ptr = Vec(2 * numSegments, new VMEReadMaster)
     val vme_rd_ind = Vec(2 * numSegments, new VMEReadMaster)
@@ -92,17 +92,17 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   for (i <- 0 until numSegments) {
     seg(i).io.start := io.start
 
-    seg(i).io.ind_A_BaseAddr := io.ind_A_BaseAddr
-    seg(i).io.ptr_A_BaseAddr := io.ptr_A_BaseAddr
-    seg(i).io.val_A_BaseAddr := io.val_A_BaseAddr
+    seg(i).io.ind_A_BaseAddr := io.ind_A_BaseAddr(i)
+    seg(i).io.ptr_A_BaseAddr := io.ptr_A_BaseAddr(i)
+    seg(i).io.val_A_BaseAddr := io.val_A_BaseAddr(i)
 
-    seg(i).io.ind_B_BaseAddr := io.ind_B_BaseAddr
-    seg(i).io.ptr_B_BaseAddr := io.ptr_B_BaseAddr
-    seg(i).io.val_B_BaseAddr := io.val_B_BaseAddr
+    seg(i).io.ind_B_BaseAddr := io.ind_B_BaseAddr(i)
+    seg(i).io.ptr_B_BaseAddr := io.ptr_B_BaseAddr(i)
+    seg(i).io.val_B_BaseAddr := io.val_B_BaseAddr(i)
 
-    seg(i).io.nnz_A := io.nnz_A
-    seg(i).io.nnz_B := io.nnz_B
-    seg(i).io.segSize := io.segSize
+    seg(i).io.nnz_A := io.nnz_A(i)
+    seg(i).io.nnz_B := io.nnz_B(i)
+    seg(i).io.segSize := io.segSize(i)
 
     io.vme_rd_ind(2 * i + 0) <> seg(i).io.vme_rd_ind(0)
     io.vme_rd_ind(2 * i + 1) <> seg(i).io.vme_rd_ind(1)
