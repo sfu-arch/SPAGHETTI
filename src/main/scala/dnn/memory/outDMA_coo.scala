@@ -77,8 +77,9 @@ class outDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Param
 
   storeQueue.io.last := io.eop
   storeQueue.io.enq <> io.in
+  io.in.ready := storeQueue.io.enq.ready && !sendingState
 
-  storeQueue.io.deq.ready := !sendingState
+  storeQueue.io.deq.ready := true.B
 
   tensorStore_row.io.tensor.wr.valid := storeQueue.io.deq.valid
   tensorStore_row.io.tensor.wr.bits.data := VecInit(storeQueue.io.deq.bits.map(_.row.asUInt())).asTypeOf(tensorStore_row.io.tensor.wr.bits.data)

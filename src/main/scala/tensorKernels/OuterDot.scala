@@ -70,11 +70,11 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   val valDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
   val ptrDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
 
-  val shapeTransformer_A = Module(new CooShapeTransformer(rowBased = true, 20, memTensorType)(segShape))
-  val shapeTransformer_B = Module(new CooShifter(rowBased = false, 20, memTensorType)(segShape))
+  val shapeTransformer_A = Module(new CooShapeTransformer(rowBased = true, 100, memTensorType)(segShape))
+  val shapeTransformer_B = Module(new CooShifter(rowBased = false, 100, memTensorType)(segShape))
 
-  val ptrST_A = Module(new DiffShapeTransformer(NumRows = 1, 20, memTensorType))
-  val ptrST_B = Module(new DiffShapeTransformer(NumRows = 1, 20, memTensorType))
+  val ptrST_A = Module(new DiffShapeTransformer(NumRows = 1, 100, memTensorType))
+  val ptrST_B = Module(new DiffShapeTransformer(NumRows = 1, 100, memTensorType))
 
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 

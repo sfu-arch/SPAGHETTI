@@ -4,7 +4,6 @@ import FPU.FType
 import chisel3.util._
 import chisel3.{when, _}
 import config._
-import dnn_layers.PW_Block
 import node.{FPvecN, matNxN, vecN}
 import shell._
 import tensorKernels.SpMM_Block
@@ -20,7 +19,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
     val vme = new VMEMaster
   })
 
-  val cycle_count = new Counter(2000)
+  val cycle_count = new Counter(100000000)
 
   val numSegments = 1
 
@@ -28,7 +27,7 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   val shape = new FPvecN(1, S, 0)
 //  val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 100, maxColLen = 64)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 40000, maxColLen = 4000)(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *
