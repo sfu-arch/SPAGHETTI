@@ -21,13 +21,13 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
 
   val cycle_count = new Counter(100000000)
 
-  val numSegments = 5
+  val numSegments = 10
 
   val S = new FType(8, 24)
   val shape = new FPvecN(1, S, 0)
 //  val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 8000, maxColLen = 4000)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegments, memTensorType = "inp", maxRowLen = 4000, maxColLen = 4000)(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *

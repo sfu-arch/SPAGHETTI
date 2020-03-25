@@ -27,8 +27,9 @@ import vta.shell._
 
 /** Host DPI parameters */
 trait VTAHostDPIParams {
-  val dpiAddrBits = 8
+  val dpiAddrBits = 16//8
   val dpiDataBits = 32
+  
 }
 
 /** Host master interface.

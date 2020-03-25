@@ -22,7 +22,7 @@ class VCRSimParams(val num_ptrs: Int = 33, val num_vals: Int = 15,
   * These parameters are used on VME interfaces and modules.
   */
 class VMESimParams() extends VMEParams {
-  override val nReadClients: Int = 30  //numSeg * 6
+  override val nReadClients: Int = 60  //numSeg * 6
   override val nWriteClients: Int = 3
   require(nReadClients > 0,
     s"\n\n[Dandelion] [VMEParams] nReadClients must be larger than 0\n\n")
@@ -43,9 +43,10 @@ class TensorBrickParams() {
   val K = 3
 }
 
-
+//vals = numsegments * 3
+//ptrs = numsegments * 6 + 3
 /** De10Config. Shell configuration for De10 */
-class De10Config (val num_ptrs: Int = 33, val num_vals: Int = 15, val num_event: Int = 4, val num_ctrl: Int = 1)extends Config((site, here, up) => {
+class De10Config (val num_ptrs: Int = 63, val num_vals: Int = 30, val num_event: Int = 4, val num_ctrl: Int = 1)extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
       addrBits = 16, dataBits = 32, idBits = 13, lenBits = 4),
