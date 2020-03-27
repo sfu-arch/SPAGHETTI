@@ -79,7 +79,7 @@ class ModArbiter(numIns: Int, numOuts: Int)(implicit p: Parameters)
   minQuotient := quotient(min)
 
   for (i <- numIns-1 to 0 by -1) {
-    when (quotient(i) < quotient(min) && io.in(i).valid && !isFinished(i)) {
+    when (((quotient(i) < quotient(min) && io.in(min).valid) || !io.in(min).valid) && io.in(i).valid && !isFinished(i)) {
       min = i
       minQuotient := quotient(i)
     }

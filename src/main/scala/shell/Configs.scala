@@ -24,7 +24,7 @@ class VCRSimParams(val num_ptrs: Int = 42, val num_vals: Int = 15,
   */
 class VMESimParams() extends VMEParams {
   override val nReadClients: Int = 30  //numSeg * 6
-  override val nWriteClients: Int = 12   //numColMerger * 3
+  override val nWriteClients: Int = 24   //numColMerger * 3
   require(nReadClients > 0, s"\n\n [VMEParams] nReadClients must be larger than 0\n\n")
   require(nWriteClients > 0, s"\n\n [VMEParams] nWriteClients must be larger than 0\n\n")
 }
@@ -47,7 +47,7 @@ class TensorBrickParams() {
   * ecnt =  numColMerger + 1
   */
 /** De10Config. Shell configuration for De10 */
-class De10Config (val num_ptrs: Int = 42, val num_vals: Int = 15, val num_event: Int = 5, val num_ctrl: Int = 1)extends Config((site, here, up) => {
+class De10Config (val num_ptrs: Int = 54, val num_vals: Int = 15, val num_event: Int = 9, val num_ctrl: Int = 1)extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
       addrBits = 16, dataBits = 32, idBits = 13, lenBits = 4),
