@@ -9,7 +9,7 @@ import node.{Shapes, vecN}
 
 class MergeAddIO(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
-    val eopIn = Input(Bool( ))
+    val lastIn = Input(Bool( ))
 //    val lastIn = Input(Bool( ))
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
@@ -29,22 +29,27 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
 
   val data = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
   val valid = RegInit(false.B)
-  val eopR = RegInit(false.B)
+//  val valid = RegNext(io.in.valid)
+  val lastR = RegInit(false.B)
 
-  when(io.eopIn) {
-    eopR := true.B
+  when(io.lastIn) {
+    lastR := true.B
   }
-  when(merger.io.in.ready && eopR) {
-    eopR := false.B
+  when(merger.io.in.ready && lastR) {
+    lastR := false.B
+  }
+  when(merger.io.in.ready && io.in.valid) {
+    data <> io.in.bits
+//    valid := io.in.valid
   }
   when(merger.io.in.ready) {
-    data <> io.in.bits
     valid := io.in.valid
   }
 
-  merger.io.lastIn := merger.io.in.ready && eopR
+
+  merger.io.lastIn := merger.io.in.ready && lastR
   merger.io.eopIn := false.B
-  when((io.in.bits.row =/= data.row && io.in.valid) || (merger.io.in.ready && eopR)) {
+  when((io.in.bits.row =/= data.row && io.in.valid) || (merger.io.in.ready && lastR)) {
     merger.io.eopIn := true.B
   }
 

@@ -17,7 +17,7 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class SpMM_BlockIO(numSegments: Int, memTensorType: String = "none")(implicit val p: Parameters)
+class SpMM_BlockIO(numSegments: Int, numColMerger: Int, memTensorType: String = "none")(implicit val p: Parameters)
   extends Module {
   val tpMem = new TensorParams(memTensorType)
 
@@ -34,9 +34,9 @@ class SpMM_BlockIO(numSegments: Int, memTensorType: String = "none")(implicit va
     val val_B_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
     val ptr_B_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
 
-    val outBaseAddr_row = Input(UInt(mp.addrBits.W))
-    val outBaseAddr_col = Input(UInt(mp.addrBits.W))
-    val outBaseAddr_val = Input(UInt(mp.addrBits.W))
+    val outBaseAddr_row = Vec(numColMerger, Input(UInt(mp.addrBits.W)))
+    val outBaseAddr_col = Vec(numColMerger, Input(UInt(mp.addrBits.W)))
+    val outBaseAddr_val = Vec(numColMerger, Input(UInt(mp.addrBits.W)))
 
     val nnz_A = Vec(numSegments, Input(UInt(mp.addrBits.W)))
     val nnz_B = Vec(numSegments, Input(UInt(mp.addrBits.W)))
@@ -46,20 +46,22 @@ class SpMM_BlockIO(numSegments: Int, memTensorType: String = "none")(implicit va
     val vme_rd_ind = Vec(2 * numSegments, new VMEReadMaster)
     val vme_rd_val = Vec(2 * numSegments, new VMEReadMaster)
 
-    val vme_wr_row = new VMEWriteMaster
-    val vme_wr_col = new VMEWriteMaster
-    val vme_wr_val = new VMEWriteMaster
+    val vme_wr_row = Vec(numColMerger, new VMEWriteMaster)
+    val vme_wr_col = Vec(numColMerger, new VMEWriteMaster)
+    val vme_wr_val = Vec(numColMerger, new VMEWriteMaster)
 
     val inDMA_time = Output(UInt(mp.addrBits.W))
-    val outDMA_len = Output(UInt(mp.addrBits.W))
     val merge_time = Output(UInt(mp.addrBits.W))
+
+
+    val outDMA_len = Vec(numColMerger, Output(UInt(mp.addrBits.W)))
   })
 }
 
 class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : OperatorCooSCAL]
-(numSegments: Int, memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
+(numSegments: Int, numColMerger: Int, memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
-  extends SpMM_BlockIO(numSegments = numSegments, memTensorType)(p) {
+  extends SpMM_BlockIO(numSegments, numColMerger, memTensorType)(p) {
 
 
   val seg = for (i <- 0 until numSegments) yield {
@@ -72,18 +74,24 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     rowMerger
   }
 
-  val arbiter = Module(new WeightedArbiter(n = numSegments))
+//  val arbiter = Module(new WeightedArbiter(n = numSegments))
+  val arbiter = Module(new ModArbiter(numIns = numSegments, numOuts = numColMerger))
 
-  val col_merger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
+  val col_merger = for (i <- 0 until numColMerger) yield {
+    val colMerger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
+    colMerger
+  }
 
-  val outDMA = Module(new outDMA_coo(bufSize = 20, memTensorType))
+  val outDMA = for (i <- 0 until numColMerger) yield {
+    val outD = Module(new outDMA_coo(bufSize = 20, memTensorType))
+    outD
+  }
 
   val inDMA_time = Counter(2000)
   val outDMA_time = Counter(2000)
   val merge_time = Counter(2000)
 
   io.inDMA_time := inDMA_time.value
-  io.outDMA_len := outDMA.io.outLen
   io.merge_time := merge_time.value
 
   /* ================================================================== *
@@ -119,26 +127,42 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
 
     arbiter.io.in(i) <> row_merger(i).io.out
     arbiter.io.eopIn(i) := row_merger(i).io.eopOut
-    arbiter.io.lastIn(i) := row_merger(i).io.lastOut
   }
 
-  io.vme_wr_row <> outDMA.io.vme_wr_row
-  io.vme_wr_col <> outDMA.io.vme_wr_col
-  io.vme_wr_val <> outDMA.io.vme_wr_val
+  for (i <- 0 until numColMerger) {
+    io.outDMA_len(i) := outDMA(i).io.outLen
 
-  outDMA.io.baddr_row := io.outBaseAddr_row
-  outDMA.io.baddr_col := io.outBaseAddr_col
-  outDMA.io.baddr_val := io.outBaseAddr_val
+    io.vme_wr_row(i) <> outDMA(i).io.vme_wr_row
+    io.vme_wr_col(i) <> outDMA(i).io.vme_wr_col
+    io.vme_wr_val(i) <> outDMA(i).io.vme_wr_val
+
+    outDMA(i).io.baddr_row := io.outBaseAddr_row(i)
+    outDMA(i).io.baddr_col := io.outBaseAddr_col(i)
+    outDMA(i).io.baddr_val := io.outBaseAddr_val(i)
+
+    col_merger(i).io.in <> arbiter.io.out(i)
+
+    col_merger(i).io.lastIn := arbiter.io.lastOut(i)
+    outDMA(i).io.in <> col_merger(i).io.out
+    outDMA(i).io.last := col_merger(i).io.lastOut
+  }
 
   /* ================================================================== *
     *         outDot -> row_merger -> col_merger -> outDMA              *
     * ================================================================== */
+  val doneR = for (i <- 0 until numColMerger) yield {
+    val doneReg = RegInit(init = false.B)
+    doneReg
+  }
+  io.done := doneR.reduceLeft(_ && _)
 
+  when (doneR.reduceLeft(_ && _)) {
+    doneR.foreach(a => a := false.B)
+  }
 
-  col_merger.io.eopIn := arbiter.io.eopOut
-  col_merger.io.in <> arbiter.io.out
-
-  outDMA.io.in <> col_merger.io.out
-  outDMA.io.eop := col_merger.io.lastOut
-  io.done := outDMA.io.done
+  for (i <- 0 until numColMerger) yield{
+    when (outDMA(i).io.done) {
+      doneR(i) := true.B
+    }
+  }
 }

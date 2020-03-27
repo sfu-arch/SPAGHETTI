@@ -31,7 +31,7 @@ class outDMA_cooIO(memTensorType: String = "none")(implicit val p: Parameters)
     val vme_wr_col = new VMEWriteMaster
     val vme_wr_val = new VMEWriteMaster
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
-    val eop = Input(Bool())
+    val last = Input(Bool())
     val outLen = Output(UInt(mp.addrBits.W))
   })
 }
@@ -46,11 +46,11 @@ class outDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Param
 
   val storeQueue = Module(new StoreQueue(new CooDataBundle(UInt(p(XLEN).W)), bufSize, tp.tensorWidth))
 
-  val popCnt = Counter(tp.memDepth)
-  val pushCnt = Counter(tp.memDepth)
+  val popCnt = Counter(math.pow(2, p(XLEN)).toInt)
+  val pushCnt = Counter(math.pow(2, p(XLEN)).toInt)
   val length = RegInit(init = 0.U)
   val sendingState = RegInit(false.B)
-  val start = RegNext(io.eop)
+  val start = RegNext(io.last)
 
   when(storeQueue.io.enq.fire()){
     pushCnt.inc()
@@ -60,7 +60,7 @@ class outDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Param
   }
 
 
-  when(io.eop){
+  when(io.last){
     length := pushCnt.value
     pushCnt.value := 0.U
     sendingState := true.B
@@ -75,7 +75,7 @@ class outDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Param
 
   }
 
-  storeQueue.io.last := io.eop
+  storeQueue.io.last := io.last
   storeQueue.io.enq <> io.in
   io.in.ready := storeQueue.io.enq.ready && !sendingState
 

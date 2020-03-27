@@ -6,7 +6,7 @@ import config._
 import junctions._
 
 
-class VCRSimParams(val num_ptrs: Int = 33, val num_vals: Int = 15,
+class VCRSimParams(val num_ptrs: Int = 42, val num_vals: Int = 15,
                    val num_event: Int = 1, val num_ctrl: Int = 1) extends VCRParams {
   override val nCtrl = num_ctrl
   override val nECnt = num_event
@@ -19,16 +19,14 @@ class VCRSimParams(val num_ptrs: Int = 33, val num_vals: Int = 15,
 
 /** VME parameters.
   *
-  * These parameters are used on VME interfaces and modules.
+  * nRead =   numSegments * 6
+  * nWrite =  numColMerger * 3
   */
 class VMESimParams() extends VMEParams {
-  override val nReadClients: Int = 60  //numSeg * 6
-  override val nWriteClients: Int = 3
-  require(nReadClients > 0,
-    s"\n\n[Dandelion] [VMEParams] nReadClients must be larger than 0\n\n")
-  require(
-    nWriteClients > 0,
-    s"\n\n[Dandelion] [VMEParams] nWriteClients must be larger than 0\n\n")
+  override val nReadClients: Int = 30  //numSeg * 6
+  override val nWriteClients: Int = 12   //numColMerger * 3
+  require(nReadClients > 0, s"\n\n [VMEParams] nReadClients must be larger than 0\n\n")
+  require(nWriteClients > 0, s"\n\n [VMEParams] nWriteClients must be larger than 0\n\n")
 }
 
 
@@ -43,10 +41,13 @@ class TensorBrickParams() {
   val K = 3
 }
 
-//vals = numsegments * 3
-//ptrs = numsegments * 6 + 3
+/**
+  * vals =  numSegments * 3
+  * ptrs =  numSegments * 6 + numColMerger * 3
+  * ecnt =  numColMerger + 1
+  */
 /** De10Config. Shell configuration for De10 */
-class De10Config (val num_ptrs: Int = 63, val num_vals: Int = 30, val num_event: Int = 4, val num_ctrl: Int = 1)extends Config((site, here, up) => {
+class De10Config (val num_ptrs: Int = 42, val num_vals: Int = 15, val num_event: Int = 5, val num_ctrl: Int = 1)extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
       addrBits = 16, dataBits = 32, idBits = 13, lenBits = 4),

@@ -42,7 +42,7 @@ case class CoreParams(
     accBits: Int = 32,
     outBits: Int = 8,
     uopMemDepth: Int = 512,
-    inpMemDepth: Int = 8192, //512
+    inpMemDepth: Int = 2048, //512
 
     wgtMemDepth: Int = 512,
 
@@ -92,7 +92,7 @@ class CoreConfig
           accBits = 32,
           outBits = 8,
           uopMemDepth = 2048,
-          inpMemDepth = 8192, //2660
+          inpMemDepth = 2048, //2660
           wgtMemDepth = 512,
 
           extWgtP1MemDepth = 475,
