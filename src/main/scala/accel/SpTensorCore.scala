@@ -8,12 +8,11 @@ import node.{FPvecN, matNxN, vecN}
 import shell._
 import tensorKernels.SpMM_Block
 
-/** DNNCore.
+/** SparseTensorCore.
   *
-  * The DNNcore defines the current DNN accelerator by connecting the M-Bricks, L-Bricks and I-Bricks together.
-  * By changing the parameters and batch size, the bricks will be configured automatically.
+  * SparseTensorCore is able to perform the linear algebraic computations on sparse tensors.
   */
-class DNNCoreMerge(implicit val p: Parameters) extends Module {
+class SpTensorCore(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
@@ -105,10 +104,6 @@ class DNNCoreMerge(implicit val p: Parameters) extends Module {
   val last = state === sExec && block.io.done
   io.vcr.finish := last
   io.vcr.ecnt.map(_.valid).foreach(a => a := last)
-//  io.vcr.ecnt(0).valid := last
-//  io.vcr.ecnt(1).valid := last
-//  io.vcr.ecnt(2).valid := last
-//  io.vcr.ecnt(3).valid := last
 
   when(state =/= sIdle) {
     cycle_count.inc()

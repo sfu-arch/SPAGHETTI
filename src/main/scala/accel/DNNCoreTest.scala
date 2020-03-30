@@ -8,7 +8,8 @@ import config._
 import control.BasicBlockNoMaskNode
 import dnn.wrappers.SystolicSquareWrapper
 import dnn.{DotNode, ReduceNode}
-import interfaces.{ControlBundle, DataBundle}
+import dnnnode.MIMOQueue
+import interfaces.{ControlBundle, CooDataBundle, DataBundle}
 import junctions.SplitCallNew
 import memory.{ReadTypMemoryController, WriteTypMemoryController}
 import node.{FXmatNxN, TypLoad, TypStore}
@@ -56,7 +57,8 @@ class DNNCoreTest(implicit p: Parameters) extends Module {
     val vme = new VMEMaster
   })
 
-  val buffer = Module(new Queue(io.vme.rd(0).data.bits.cloneType,40))
+//  val buffer = Module(new Queue(io.vme.rd(0).data.bits.cloneType,40))
+  val queue = Module(new MIMOQueue(UInt(p(XLEN).W), entries = 40, io.vme.rd(0).data.bits.getWidth / p(XLEN), NumOuts = 2))
 
   val sIdle :: sReq :: sBusy :: Nil = Enum(3)
   val Rstate = RegInit(sIdle)
@@ -68,6 +70,8 @@ class DNNCoreTest(implicit p: Parameters) extends Module {
     cycle_count.inc( )
   }
 
+
+   queue.io.clear := false.B
 
   io.vcr.ecnt(0.U).bits := cycle_count.value
 
@@ -126,8 +130,17 @@ class DNNCoreTest(implicit p: Parameters) extends Module {
   }
 
 
-  buffer.io.enq <> io.vme.rd(0).data
-  buffer.io.enq.bits := io.vme.rd(0).data.bits + io.vcr.vals(0)
-  io.vme.wr(0).data <> buffer.io.deq
+   queue.io.enq.valid := io.vme.rd(0).data.valid
+   queue.io.enq.bits := io.vme.rd(0).data.bits.asTypeOf(queue.io.enq.bits)
+   io.vme.rd(0).data.ready := queue.io.enq.ready
+
+   val res = Wire(Vec(2, UInt(p(XLEN).W)))
+   for (i <- 0 until 2) {
+     res(i) := queue.io.deq.bits(i) + io.vcr.vals(0)
+   }
+
+   io.vme.wr(0).data.bits := res.asUInt()
+   io.vme.wr(0).data.valid := queue.io.deq.valid
+   queue.io.deq.ready := io.vme.wr(0).data.ready
 }
 
