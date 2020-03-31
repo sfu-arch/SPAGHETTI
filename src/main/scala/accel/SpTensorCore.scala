@@ -20,15 +20,15 @@ class SpTensorCore(implicit val p: Parameters) extends Module {
 
   val cycle_count = new Counter(100000000)
 
-  val numSegments = 5
-  val numColMerger = 8
+  val numSegments = 3
+  val numColMerger = 3
 
 
   val S = new FType(8, 24)
   val shape = new FPvecN(1, S, 0)
 //  val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block(numSegments = numSegments, numColMerger = numColMerger, memTensorType = "inp", maxRowLen = 8000, maxColLen = 2000)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegments, numColMerger = numColMerger, memTensorType = "inp", maxRowLen = 15000, maxColLen = 2000)(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *

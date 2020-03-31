@@ -73,8 +73,8 @@ class DNNAccel(implicit p: Parameters) extends Module {
 
   val vcr = Module(new VCR)
   val vme = Module(new VME)
-  val core = Module(new DNNCoreTest)
-//  val core = Module(new SpTensorCore)
+//  val core = Module(new DNNCoreTest)
+  val core = Module(new SpTensorCore)
 
   /* ================================================================== *
    *                       Host to VCR Connection                       *
