@@ -32,10 +32,15 @@ ifeq (, $(VERILATOR_INC_DIR))
   endif
 endif
 
-TOP = TestAccel2
+TOP = TensorStrainersSimAccel
 BUILD_NAME = build
 USE_TRACE = 1
 LIBNAME = libhw
+
+NUM_Segment =  1
+NUM_ColMerger = 1
+MAX_RowLen = 4000
+MAX_ColLen = 2000
 
 vta_dir = $(abspath ./)
 tvm_dir = $(abspath ./include/)
@@ -103,7 +108,7 @@ $(verilator_build_dir)/V$(TOP).cpp: $(chisel_build_dir)/$(TOP).v
 
 verilog: $(chisel_build_dir)/$(TOP).v
 $(chisel_build_dir)/$(TOP).v: $(shell find . -type f -name "*.scala" | sed 's/ /\\ /g')#install_vta_package
-	sbt 'test:runMain accel.${TOP}Main --target-dir $(chisel_build_dir) --top-name $(TOP)'
+	sbt 'test:runMain accel.${TOP}Main --target-dir $(chisel_build_dir) --top-name $(TOP) --numSegment $(NUM_Segment) --numColMerger $(NUM_ColMerger) --maxRowLen $(MAX_RowLen) --maxColLen $(MAX_ColLen)'
 
 #install_vta_package:
 #	cd $(vta_dir)/hardware/chisel && sbt publishLocal

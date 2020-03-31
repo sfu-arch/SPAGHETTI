@@ -28,7 +28,6 @@ case class ShellParams(
   memParams: AXIParams,
   vcrParams: VCRSimParams,
   vmeParams: VMESimParams,
-  tensorBrickParams: TensorBrickParams
 )
 
 case object ShellKey extends Field[ShellParams]

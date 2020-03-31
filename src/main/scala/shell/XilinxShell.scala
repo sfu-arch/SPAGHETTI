@@ -32,7 +32,7 @@ import accel._
   * This is a wrapper shell mostly used to match Xilinx convention naming,
   * therefore we can pack VTA as an IP for IPI based flows.
   */
-class XilinxShell(implicit p: Parameters) extends RawModule {
+class XilinxShell()(implicit p: Parameters) extends RawModule {
 
   val hp = p(ShellKey).hostParams
   val mp = p(ShellKey).memParams
@@ -42,7 +42,7 @@ class XilinxShell(implicit p: Parameters) extends RawModule {
   val m_axi_gmem = IO(new XilinxAXIMaster(mp))
   val s_axi_control = IO(new XilinxAXILiteClient(hp))
 
-  val shell = withClockAndReset (clock = ap_clk, reset = ~ap_rst_n) { Module(new DNNAccel()) }
+  val shell = withClockAndReset (clock = ap_clk, reset = ~ap_rst_n) { Module(new SpAccel()) }
 
   // memory
   m_axi_gmem.AWVALID := shell.io.mem.aw.valid

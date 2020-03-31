@@ -12,7 +12,7 @@ import tensorKernels.SpMM_Block
   *
   * SparseTensorCore is able to perform the linear algebraic computations on sparse tensors.
   */
-class SpTensorCore(implicit val p: Parameters) extends Module {
+class SpTensorCore(numSegment: Int, numColMerger: Int, maxRowLen: Int, maxColLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
@@ -20,20 +20,20 @@ class SpTensorCore(implicit val p: Parameters) extends Module {
 
   val cycle_count = new Counter(100000000)
 
-  val numSegments = 3
-  val numColMerger = 3
+//  val numSegments = 3
+//  val numColMerger = 3
 
 
   val S = new FType(8, 24)
   val shape = new FPvecN(1, S, 0)
 //  val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block(numSegments = numSegments, numColMerger = numColMerger, memTensorType = "inp", maxRowLen = 15000, maxColLen = 2000)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegment, numColMerger = numColMerger, memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *
      * ================================================================== */
-  for (i <- 0 until numSegments) {
+  for (i <- 0 until numSegment) {
     block.io.nnz_A(i) := io.vcr.vals(i * 3 + 0)
     block.io.nnz_B(i) := io.vcr.vals(i * 3 + 1)
     block.io.segSize(i) := io.vcr.vals(i * 3 + 2)
@@ -56,7 +56,7 @@ class SpTensorCore(implicit val p: Parameters) extends Module {
 
   block.io.start := false.B
 
-  for (i <- 0 until numSegments) {
+  for (i <- 0 until numSegment) {
     io.vme.rd(6 * i + 0) <> block.io.vme_rd_ptr(2 * i + 0)
     io.vme.rd(6 * i + 1) <> block.io.vme_rd_ind(2 * i + 0)
     io.vme.rd(6 * i + 2) <> block.io.vme_rd_val(2 * i + 0)
@@ -79,9 +79,9 @@ class SpTensorCore(implicit val p: Parameters) extends Module {
     io.vme.wr(3 * i + 1) <> block.io.vme_wr_col(i)
     io.vme.wr(3 * i + 2) <> block.io.vme_wr_val(i)
 
-    block.io.outBaseAddr_row(i) := io.vcr.ptrs((numSegments * 6) + (3 * i) + 0)
-    block.io.outBaseAddr_col(i) := io.vcr.ptrs((numSegments * 6) + (3 * i) + 1)
-    block.io.outBaseAddr_val(i) := io.vcr.ptrs((numSegments * 6) + (3 * i) + 2)
+    block.io.outBaseAddr_row(i) := io.vcr.ptrs((numSegment * 6) + (3 * i) + 0)
+    block.io.outBaseAddr_col(i) := io.vcr.ptrs((numSegment * 6) + (3 * i) + 1)
+    block.io.outBaseAddr_val(i) := io.vcr.ptrs((numSegment * 6) + (3 * i) + 2)
   }
 
   val sIdle :: sExec :: sFinish :: Nil = Enum(3)
