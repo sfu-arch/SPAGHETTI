@@ -3,7 +3,6 @@ package shell
 
 import chisel3.Module
 import config._
-import junctions._
 
 
 class VCRSimParams(val num_ptrs: Int = 42, val num_vals: Int = 15,
@@ -58,6 +57,23 @@ class De10Config (val num_ptrs: Int = 2, val num_vals: Int = 2, val num_event: I
       coherent = true),
 //    vcrParams = VCRParams( ),
 //    vmeParams = VMEParams( ))
+    vcrParams = new VCRSimParams(num_ptrs, num_vals, num_event, num_ctrl),
+    vmeParams = new VMESimParams(),
+    tensorBrickParams = new TensorBrickParams())
+})
+
+
+/** AWSConfig. Shell configuration for AWS FPGAs */
+class AWSConfig (val num_ptrs: Int = 2, val num_vals: Int = 2, val num_event: Int = 1, val num_ctrl: Int = 1)extends Config((site, here, up) => {
+  case ShellKey => ShellParams(
+    hostParams = AXIParams(
+      addrBits = 32, dataBits = 32, idBits = 13, lenBits = 8),
+    memParams = AXIParams(
+      addrBits = 64, dataBits = 512, userBits = 10,
+      lenBits = 8,
+      coherent = false),
+    //    vcrParams = VCRParams( ),
+    //    vmeParams = VMEParams( ))
     vcrParams = new VCRSimParams(num_ptrs, num_vals, num_event, num_ctrl),
     vmeParams = new VMESimParams(),
     tensorBrickParams = new TensorBrickParams())

@@ -58,6 +58,37 @@ class TestAccel2(implicit p: Parameters) extends MultiIOModule {
 // vta_shell.io.host <> sim_shell.host
 }
 
+/** Test. This generates a testbench file for simulation */
+class TestAccelAWS(implicit p: Parameters) extends MultiIOModule {
+  val sim_clock = IO(Input(Clock()))
+  val sim_wait = IO(Output(Bool()))
+  val sim_shell = Module(new AXISimShell)
+  val vta_shell = Module(new DNNAccel())
+  sim_shell.sim_clock := sim_clock
+  sim_wait := sim_shell.sim_wait
+
+  sim_shell.mem.ar <> vta_shell.io.mem.ar
+  sim_shell.mem.aw <> vta_shell.io.mem.aw
+  vta_shell.io.mem.r <> sim_shell.mem.r
+  vta_shell.io.mem.b <> sim_shell.mem.b
+  sim_shell.mem.w <> vta_shell.io.mem.w
+
+
+
+  vta_shell.io.host.ar <> sim_shell.host.ar
+  vta_shell.io.host.aw <> sim_shell.host.aw
+  sim_shell.host.r <> vta_shell.io.host.r
+  sim_shell.host.b <> vta_shell.io.host.b
+  vta_shell.io.host.w <> sim_shell.host.w
+
+  // vta_shell.io.host <> sim_shell.host
+}
+
+
+
+
+class DefaultAWSConfig extends Config(new AWSConfig ++ new CoreConfig ++ new MiniConfig)
+
 class DefaultDe10Config extends Config(new De10Config ++ new CoreConfig ++ new MiniConfig)
 class  DefaultPynqConfig extends Config(new PynqConfig ++ new CoreConfig ++ new MiniConfig)
 
@@ -73,6 +104,12 @@ object TestVTAShell2Main extends App {
 object TestAccel2Main extends App {
   implicit val p: Parameters = new DefaultDe10Config
   chisel3.Driver.execute(args, () => new TestAccel2)
+}
+
+
+object TestAccelAWSMain extends App {
+  implicit val p: Parameters = new DefaultAWSConfig
+  chisel3.Driver.execute(args, () => new TestAccelAWS)
 }
 
 object DNNAccelMain extends App {
