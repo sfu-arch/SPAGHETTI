@@ -13,7 +13,6 @@ class VCRSimParams(val num_ptrs: Int = 42, val num_vals: Int = 15,
   override val nPtrs = num_ptrs
   override val regBits = 32
   val ptrBits = regBits
-  //val ptrBits = 2 * regBits
 }
 
 /** VME parameters.
@@ -27,7 +26,6 @@ class VMESimParams(numSegments: Int = 1, numColMerger: Int = 1) extends VMEParam
   require(nReadClients > 0, s"\n\n [VMEParams] number of segments must be larger than 0\n\n")
   require(nWriteClients > 0, s"\n\n [VMEParams] number of column mergers must be larger than 0\n\n")
 }
-
 
 /**
   * vals =  numSegments * 3
@@ -80,12 +78,3 @@ class PynqConfig (numSegments: Int = 1, numColMerger: Int = 1) extends Config((s
     vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 1, num_ctrl = 1),
     vmeParams = new VMESimParams(numSegments = numSegments, numColMerger = numColMerger))
 })
-
-
-//class DefaultDe10Config extends Config(new MiniConfig ++ new De10Config)
-
-
-//object DefaultDe10Config extends App {
-//  implicit val p: Parameters = new DefaultDe10Config
-//  chisel3.Driver.execute(args, () => new IntelShell)
-//}

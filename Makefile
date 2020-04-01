@@ -113,5 +113,8 @@ $(chisel_build_dir)/$(TOP).v: $(shell find . -type f -name "*.scala" | sed 's/ /
 #install_vta_package:
 #	cd $(vta_dir)/hardware/chisel && sbt publishLocal
 
+cleanV:
+	-rm $(verilator_build_dir)/*
+
 clean:
 	-rm -rf $(build_dir) target project/target project/project

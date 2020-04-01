@@ -19,10 +19,8 @@
 
 package accel
 
-import accel.TensorStrainersSimAccelMain.args
 import chisel3._
 import chisel3.MultiIOModule
-import vta.dpi._
 import shell._
 import vta.shell._
 import shell.De10Config
@@ -32,32 +30,6 @@ import chisel3.util._
 import dnn.memory._
 
 
-
-///** Test. This generates a testbench file for simulation */
-//class TestAccel2(implicit p: Parameters) extends MultiIOModule {
-//  val sim_clock = IO(Input(Clock()))
-//  val sim_wait = IO(Output(Bool()))
-//  val sim_shell = Module(new AXISimShell)
-//  val vta_shell = Module(new SpAccel())
-//  sim_shell.sim_clock := sim_clock
-//  sim_wait := sim_shell.sim_wait
-//
-//  sim_shell.mem.ar <> vta_shell.io.mem.ar
-//  sim_shell.mem.aw <> vta_shell.io.mem.aw
-//  vta_shell.io.mem.r <> sim_shell.mem.r
-//  vta_shell.io.mem.b <> sim_shell.mem.b
-//  sim_shell.mem.w <> vta_shell.io.mem.w
-//
-//
-//
-//  vta_shell.io.host.ar <> sim_shell.host.ar
-//  vta_shell.io.host.aw <> sim_shell.host.aw
-//  sim_shell.host.r <> vta_shell.io.host.r
-//  sim_shell.host.b <> vta_shell.io.host.b
-//  vta_shell.io.host.w <> sim_shell.host.w
-//
-//// vta_shell.io.host <> sim_shell.host
-//}
 
 /** Test. This generates a testbench file for simulation */
 class TestAccelAWS(implicit p: Parameters) extends MultiIOModule {
