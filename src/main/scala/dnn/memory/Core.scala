@@ -92,7 +92,7 @@ class CoreConfig
           accBits = 32,
           outBits = 32, //8,
           uopMemDepth = 2048,
-          inpMemDepth = 2048, //2660
+          inpMemDepth = 15000, //2660
           wgtMemDepth = 512,
 
           extWgtP1MemDepth = 475,
@@ -104,7 +104,7 @@ class CoreConfig
           intWgtP2MemDepth = 10,
 
           accMemDepth = 2048,
-          outMemDepth = 1330,
+          outMemDepth = 50000,
           instQueueEntries = 512
         )
     })

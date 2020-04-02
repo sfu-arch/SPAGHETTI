@@ -110,7 +110,7 @@ class CooShifter[L <: Shapes](rowBased: Boolean, bufSize: Int, memTensorType: St
       }
     }
     is(sClear){
-      when((popCnt.value === elemNum - io.numDeq) && queue.io.deq.fire()){
+      when((popCnt.value === elemNum - io.numDeq - 1.U) && queue.io.deq.fire()){
         popCnt.value := 0.U
         queue.io.clear := true.B
         io.done := true.B

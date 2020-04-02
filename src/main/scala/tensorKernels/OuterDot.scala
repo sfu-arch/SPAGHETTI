@@ -262,13 +262,15 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
           }
         }.elsewhen(colAisZero && !rowBisZero) {
           shapeTransformer_B.io.out.ready := true.B
-          bCnt.inc()
-          when(bCnt.value === ptrST_B.io.deq(0).bits - 1.U) {
-            bCnt.value := 0.U
-            shapeTransformer_A.io.out(0).ready := true.B
-            ptrST_A.io.deq(0).ready := true.B
-            ptrST_B.io.deq(0).ready := true.B
-          }
+          ptrST_A.io.deq(0).ready := true.B
+          ptrST_B.io.deq(0).ready := true.B
+          //bCnt.inc()
+          //when(bCnt.value === ptrST_B.io.deq(0).bits - 1.U) {
+          //  bCnt.value := 0.U
+          //  shapeTransformer_A.io.out(0).ready := true.B
+          //  ptrST_A.io.deq(0).ready := true.B
+          //  ptrST_B.io.deq(0).ready := true.B
+          //}
         }.elsewhen(rowBisZero && !colAisZero) {
           shapeTransformer_A.io.out(0).ready := true.B
           aCnt.inc()
