@@ -83,7 +83,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   }
 
   val outDMA = for (i <- 0 until numColMerger) yield {
-    val outD = Module(new outDMA_coo(bufSize = 20, memTensorType))
+    val outD = Module(new outDMA_coo(bufSize = 20, memTensorType = "out"))
     outD
   }
 

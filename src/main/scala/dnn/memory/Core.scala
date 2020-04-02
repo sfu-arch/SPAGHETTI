@@ -29,7 +29,7 @@ import shell._
 /** Core parameters */
 case class CoreParams(
     batch: Int = 1,
-    blockOut: Int = 16,
+    blockOut: Int = 8,
     blockIn: Int = 8, //16,
     inpBits: Int = 32, //8,
     wgtBits: Int = 32, //8,
@@ -40,7 +40,7 @@ case class CoreParams(
 
     uopBits: Int = 32,
     accBits: Int = 32,
-    outBits: Int = 8,
+    outBits: Int = 32,
     uopMemDepth: Int = 512,
     inpMemDepth: Int = 2048, //512
 
@@ -81,7 +81,7 @@ class CoreConfig
       case CoreKey =>
         CoreParams(
           batch = 1,
-          blockOut = 16,
+          blockOut = 8,
           blockIn = 8, //16,
           inpBits = 32,//8,
           wgtBits = 32,//8,
@@ -90,7 +90,7 @@ class CoreConfig
           PW2kernelSize = 5,
           uopBits = 32,
           accBits = 32,
-          outBits = 8,
+          outBits = 32, //8,
           uopMemDepth = 2048,
           inpMemDepth = 2048, //2660
           wgtMemDepth = 512,
