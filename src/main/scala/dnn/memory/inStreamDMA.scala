@@ -28,23 +28,24 @@ class inStreamDMAIO(memTensorType: String = "none")(implicit val p: Parameters)
     val baddr = Input(UInt(mp.addrBits.W))
     val len = Input(UInt(mp.addrBits.W))
     val vme_rd = new VMEReadMaster
-    val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
+    val out = Decoupled(UInt(p(XLEN).W))
   })
 }
 
-class inStreamDMA(NumOuts: Int, memTensorType: String = "none")(implicit p: Parameters)
+class inStreamDMA(bufSize: Int, memTensorType: String = "none")(implicit p: Parameters)
   extends inStreamDMAIO(memTensorType)(p) {
 
-  val strLoad = Module(new StreamLoad(memTensorType))
+  val strLoad = Module(new StreamLoad(bufSize, memTensorType))
 
 
   io.done := strLoad.io.done
 
+  val width =  p(ShellKey).memParams.dataBits / p(XLEN)
 
   val tl_Inst = Wire(new MemDecode)
-  val memTensorRows = Mux(io.len % tp.tensorWidth.U === 0.U,
-                          io.len / tp.tensorWidth.U,
-                          (io.len / tp.tensorWidth.U) + 1.U)
+  val memTensorRows = Mux(io.len % width.U === 0.U,
+                          io.len / width.U,
+                          (io.len / width.U) + 1.U)
 
   tl_Inst.xpad_0 := 0.U
   tl_Inst.xpad_1 := 0.U

@@ -64,17 +64,17 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
 
   val indDMA_A =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
   val valDMA_A =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
-  val ptrDMA_A =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+  val ptrDMA_A =  Module(new inStreamDMA(bufSize = 34, memTensorType))
 
   val indDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
   val valDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
-  val ptrDMA_B =  Module(new inDMA_act_HWC(NumRows = 1, 1, memTensorType))
+  val ptrDMA_B =  Module(new inStreamDMA(bufSize = 34, memTensorType))
 
   val shapeTransformer_A = Module(new CooShapeTransformer(rowBased = true, 100, memTensorType)(segShape))
   val shapeTransformer_B = Module(new CooShifter(rowBased = false, 100, memTensorType)(segShape))
 
-  val ptrST_A = Module(new DiffShapeTransformer(NumRows = 1, 100, memTensorType))
-  val ptrST_B = Module(new DiffShapeTransformer(NumRows = 1, 100, memTensorType))
+  val ptrST_A = Module(new DiffShapeTransformer( 3, memTensorType))
+  val ptrST_B = Module(new DiffShapeTransformer( 3, memTensorType))
 
   val mul = Module(new CooSCALNode(N = 1, ID = 0, opCode = "Mul")(segShape))
 
@@ -93,8 +93,8 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
     * ================================================================== */
 
   ptrDMA_A.io.start := io.start
-  ptrDMA_A.io.rowWidth := io.segSize + 1.U
-  ptrDMA_A.io.depth := 1.U
+  ptrDMA_A.io.len := io.segSize + 1.U
+//  ptrDMA_A.io.depth := 1.U
   ptrDMA_A.io.baddr := io.ptr_A_BaseAddr
 
   indDMA_A.io.start := io.start
@@ -108,8 +108,8 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   valDMA_A.io.baddr := io.val_A_BaseAddr
 
   ptrDMA_B.io.start := io.start
-  ptrDMA_B.io.rowWidth := io.segSize + 1.U
-  ptrDMA_B.io.depth := 1.U
+  ptrDMA_B.io.len := io.segSize + 1.U
+//  ptrDMA_B.io.depth := 1.U
   ptrDMA_B.io.baddr := io.ptr_B_BaseAddr
 
   indDMA_B.io.start := io.start
@@ -128,16 +128,19 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   io.vme_rd_val(0) <> valDMA_A.io.vme_rd(0)
   io.vme_rd_val(1) <> valDMA_B.io.vme_rd(0)
 
-  io.vme_rd_ptr(0) <> ptrDMA_A.io.vme_rd(0)
-  io.vme_rd_ptr(1) <> ptrDMA_B.io.vme_rd(0)
+  io.vme_rd_ptr(0) <> ptrDMA_A.io.vme_rd
+  io.vme_rd_ptr(1) <> ptrDMA_B.io.vme_rd
 
   indDMA_A.io.tensor(0) <> shapeTransformer_A.io.indTensor
   valDMA_A.io.tensor(0) <> shapeTransformer_A.io.valTensor
-  ptrDMA_A.io.tensor(0) <> ptrST_A.io.tensor(0)
+//  ptrDMA_A.io.tensor(0) <> ptrST_A.io.tensor
+  ptrST_A.io.in <> ptrDMA_A.io.out
+
 
   indDMA_B.io.tensor(0) <> shapeTransformer_B.io.indTensor
   valDMA_B.io.tensor(0) <> shapeTransformer_B.io.valTensor
-  ptrDMA_B.io.tensor(0) <> ptrST_B.io.tensor(0)
+//  ptrDMA_B.io.tensor(0) <> ptrST_B.io.tensor
+  ptrST_B.io.in <> ptrDMA_B.io.out
 
   /* ================================================================== *
    *                      inDMA_acts & loadNodes                       *
@@ -148,26 +151,26 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   ptrST_A.io.len := io.segSize + 1.U
   ptrST_B.io.len := io.segSize + 1.U
 
-  ptrST_A.io.deq(0).ready := false.B
-  ptrST_B.io.deq(0).ready := false.B
+  ptrST_A.io.out.ready := false.B
+  ptrST_B.io.out.ready := false.B
 
   /* ================================================================== *
     *                        DMA done registers                         *
     * ================================================================== */
 
-  val DMA_doneR_A = for (i <- 0 until 3) yield {
+  val DMA_doneR_A = for (i <- 0 until 2) yield {
     val doneReg = RegInit(init = false.B)
     doneReg
   }
-  val DMA_doneR_B = for (i <- 0 until 3) yield {
+  val DMA_doneR_B = for (i <- 0 until 2) yield {
     val doneReg = RegInit(init = false.B)
     doneReg
   }
   shapeTransformer_A.io.start := DMA_doneR_A.reduceLeft(_ && _)
-  ptrST_A.io.start := DMA_doneR_A.reduceLeft(_ && _)
+  ptrST_A.io.start := io.start
 
   shapeTransformer_B.io.start := DMA_doneR_B.reduceLeft(_ && _)
-  ptrST_B.io.start := DMA_doneR_B.reduceLeft(_ && _)
+  ptrST_B.io.start := io.start
 
   when (DMA_doneR_A.reduceLeft(_ && _)) {
     DMA_doneR_A.foreach(a => a := false.B)
@@ -176,23 +179,23 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
     DMA_doneR_B.foreach(a => a := false.B)
   }
 
-  when(ptrDMA_A.io.done) {DMA_doneR_A(0) := true.B}
-  when(indDMA_A.io.done) {DMA_doneR_A(1) := true.B}
-  when(valDMA_A.io.done) {DMA_doneR_A(2) := true.B}
-  when(ptrDMA_B.io.done) {DMA_doneR_B(0) := true.B}
-  when(indDMA_B.io.done) {DMA_doneR_B(1) := true.B}
-  when(valDMA_B.io.done) {DMA_doneR_B(2) := true.B}
+//  when(ptrDMA_A.io.done) {DMA_doneR_A(0) := true.B}
+  when(indDMA_A.io.done) {DMA_doneR_A(0) := true.B}
+  when(valDMA_A.io.done) {DMA_doneR_A(1) := true.B}
+//  when(ptrDMA_B.io.done) {DMA_doneR_B(0) := true.B}
+  when(indDMA_B.io.done) {DMA_doneR_B(0) := true.B}
+  when(valDMA_B.io.done) {DMA_doneR_B(1) := true.B}
 
   /* ================================================================== *
      *                       multiplier and st                          *
      * ================================================================== */
 
   mul.io.scal.bits := shapeTransformer_B.io.out.bits
-  mul.io.scal.valid := shapeTransformer_B.io.out.valid && ptrST_B.io.deq(0).valid
+  mul.io.scal.valid := shapeTransformer_B.io.out.valid && ptrST_B.io.out.valid
   shapeTransformer_B.io.out.ready := false.B
 
   mul.io.vec(0).bits := shapeTransformer_A.io.out(0).bits
-  mul.io.vec(0).valid := shapeTransformer_A.io.out(0).valid && ptrST_A.io.deq(0).valid
+  mul.io.vec(0).valid := shapeTransformer_A.io.out(0).valid && ptrST_A.io.out.valid
   shapeTransformer_A.io.out(0).ready := false.B
 
   io.out <> mul.io.out(0)
@@ -213,23 +216,23 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   val aCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
 
   shapeTransformer_B.io.idx := bCnt.value
-  shapeTransformer_B.io.numDeq := ptrST_B.io.deq(0).bits
+  shapeTransformer_B.io.numDeq := ptrST_B.io.out.bits
 
   val outCnt_a = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
   val outCnt_b = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
-  when(ptrST_A.io.deq(0).fire()){outCnt_a.inc()}
-  when(ptrST_B.io.deq(0).fire()){outCnt_b.inc()}
+  when(ptrST_A.io.out.fire()){outCnt_a.inc()}
+  when(ptrST_B.io.out.fire()){outCnt_b.inc()}
 
   io.eopOut := false.B
   io.lastOut := false.B
 
   val colAisZero = Wire(Bool())
   colAisZero := false.B
-  when(ptrST_A.io.deq(0).bits === 0.U) {colAisZero := true.B}
+  when(ptrST_A.io.out.bits === 0.U) {colAisZero := true.B}
 
   val rowBisZero = Wire(Bool())
   rowBisZero := false.B
-  when(ptrST_B.io.deq(0).bits === 0.U) {rowBisZero := true.B}
+  when(ptrST_B.io.out.bits === 0.U) {rowBisZero := true.B}
 
   switch(state) {
     is(sIdle) {
@@ -246,24 +249,24 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
     }
     is(sExec) {
 
-      when(ptrST_A.io.deq(0).valid && ptrST_B.io.deq(0).valid) {
+      when(ptrST_A.io.out.valid && ptrST_B.io.out.valid) {
         when(mul.io.scal.ready && mul.io.vec(0).ready && !colAisZero && !rowBisZero) {
           bCnt.inc()
-          when(bCnt.value === ptrST_B.io.deq(0).bits - 1.U) {
+          when(bCnt.value === ptrST_B.io.out.bits - 1.U) {
             shapeTransformer_A.io.out(0).ready := true.B
             bCnt.value := 0.U
             aCnt.inc()
-            when(aCnt.value === ptrST_A.io.deq(0).bits - 1.U) {
+            when(aCnt.value === ptrST_A.io.out.bits - 1.U) {
               aCnt.value := 0.U
               shapeTransformer_B.io.out.ready := true.B
-              ptrST_A.io.deq(0).ready := true.B
-              ptrST_B.io.deq(0).ready := true.B
+              ptrST_A.io.out.ready := true.B
+              ptrST_B.io.out.ready := true.B
             }
           }
         }.elsewhen(colAisZero && !rowBisZero) {
           shapeTransformer_B.io.out.ready := true.B
-          ptrST_A.io.deq(0).ready := true.B
-          ptrST_B.io.deq(0).ready := true.B
+          ptrST_A.io.out.ready := true.B
+          ptrST_B.io.out.ready := true.B
           //bCnt.inc()
           //when(bCnt.value === ptrST_B.io.deq(0).bits - 1.U) {
           //  bCnt.value := 0.U
@@ -274,15 +277,15 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
         }.elsewhen(rowBisZero && !colAisZero) {
           shapeTransformer_A.io.out(0).ready := true.B
           aCnt.inc()
-          when(aCnt.value === ptrST_A.io.deq(0).bits - 1.U) {
+          when(aCnt.value === ptrST_A.io.out.bits - 1.U) {
             aCnt.value := 0.U
             shapeTransformer_B.io.out.ready := true.B
-            ptrST_A.io.deq(0).ready := true.B
-            ptrST_B.io.deq(0).ready := true.B
+            ptrST_A.io.out.ready := true.B
+            ptrST_B.io.out.ready := true.B
           }
         }.elsewhen(colAisZero && rowBisZero) {
-          ptrST_A.io.deq(0).ready := true.B
-          ptrST_B.io.deq(0).ready := true.B
+          ptrST_A.io.out.ready := true.B
+          ptrST_B.io.out.ready := true.B
         }
       }
 
