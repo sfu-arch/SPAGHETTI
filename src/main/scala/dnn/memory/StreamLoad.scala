@@ -94,8 +94,16 @@ class StreamLoad(bufSize: Int, tensorType: String = "none", debug: Boolean = fal
     dataCtrlDone := true.B
   }
 
+  val reqSize = Wire(UInt(p(XLEN).W))
+  reqSize := (dataCtrl.io.len * width.U) + width.U
+  val check = Wire(Bool ())
+  check := false.B
+  when(reqSize <= (bufSize.U - queue.io.count)) {
+    check := true.B
+  }
+
   // read-from-dram
-  io.vme_rd.cmd.valid := (state === sReadCmd) && ((dataCtrl.io.len + 1.U) * width.U <= (bufSize.U - queue.io.count))
+  io.vme_rd.cmd.valid := (state === sReadCmd) && check
   io.vme_rd.cmd.bits.addr := dataCtrl.io.addr
   io.vme_rd.cmd.bits.len := dataCtrl.io.len
 

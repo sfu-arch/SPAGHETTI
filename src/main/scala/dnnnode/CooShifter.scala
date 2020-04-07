@@ -23,14 +23,18 @@ class CooShifterIO(bufSize: Int, memTensorType: String = "none")(implicit val p:
   val tp = new TensorParams(memTensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
-    val start = Input(Bool())
-    val done = Output(Bool())
-    val len = Input(UInt(mp.addrBits.W))
+//    val start = Input(Bool())
+//    val done = Output(Bool())
+//    val len = Input(UInt(mp.addrBits.W))
     val idx = Input(UInt(log2Ceil(bufSize + 1).W))
     val numDeq = Input(UInt(log2Ceil(bufSize + 1).W))
 
-    val indTensor = new TensorMaster(memTensorType)
-    val valTensor = new TensorMaster(memTensorType)
+    val ind = Flipped(Decoupled(UInt(p(ROWLEN).W)))
+    val value = Flipped(Decoupled(UInt(p(XLEN).W)))
+
+//    val indTensor = new TensorMaster(memTensorType)
+//    val valTensor = new TensorMaster(memTensorType)
+
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
   })
 }
@@ -39,10 +43,10 @@ class CooShifter[L <: Shapes](rowBased: Boolean, bufSize: Int, memTensorType: St
                                       (outShape: => L)(implicit p: Parameters)
   extends CooShifterIO(bufSize, memTensorType)(p) {
 
-  val elemNum = io.len / outShape.getLength().U
-  val memTensorRows = Mux(io.len % tp.tensorWidth.U === 0.U,
-    io.len / tp.tensorWidth.U,
-    (io.len / tp.tensorWidth.U) + 1.U)
+//  val elemNum = io.len / outShape.getLength().U
+//  val memTensorRows = Mux(io.len % tp.tensorWidth.U === 0.U,
+//    io.len / tp.tensorWidth.U,
+//    (io.len / tp.tensorWidth.U) + 1.U)
 
   val pushCnt = Counter(tp.memDepth)
   val popCnt = Counter(tp.memDepth)
@@ -51,72 +55,45 @@ class CooShifter[L <: Shapes](rowBased: Boolean, bufSize: Int, memTensorType: St
   val state = RegInit(sIdle)
 
 
-  val queue = Module(new MIMOShifter(new CooDataBundle(UInt(p(XLEN).W)), bufSize, tp.tensorWidth))
+  val queue = Module(new MIMOShifter(new CooDataBundle(UInt(p(XLEN).W)), bufSize, NumIns = 1))
 
-  val validReg = RegInit(false.B)
+//  val validReg = RegInit(false.B)
 
-  val dataIn = Wire(Vec(tp.tensorWidth, new CooDataBundle(UInt(p(XLEN).W))))
+//  val dataIn = Wire(Vec(tp.tensorWidth, new CooDataBundle(UInt(p(XLEN).W))))
+  val dataIn = Wire(Vec(1, new CooDataBundle(UInt(p(XLEN).W))))
 
   if(rowBased){
-    for (i <- 0 until tp.tensorWidth) {
-      dataIn(i).data := io.valTensor.rd.data.bits(0)(i)
-      dataIn(i).row := io.indTensor.rd.data.bits(0)(i)
-      dataIn(i).col := 0.U
-      dataIn(i).valid := true.B
-    }
+//    for (i <- 0 until tp.tensorWidth) {
+      dataIn(0).data := io.value.bits
+      dataIn(0).row := io.ind.bits
+      dataIn(0).col := 0.U
+      dataIn(0).valid := true.B
+//    }
   } else{
-    for (i <- 0 until tp.tensorWidth) {
-      dataIn(i).data := io.valTensor.rd.data.bits(0)(i)
-      dataIn(i).row := 0.U
-      dataIn(i).col := io.indTensor.rd.data.bits(0)(i)
-      dataIn(i).valid := true.B
-    }
+//    for (i <- 0 until tp.tensorWidth) {
+      dataIn(0).data := io.value.bits
+      dataIn(0).row := 0.U
+      dataIn(0).col := io.ind.bits
+      dataIn(0).valid := true.B
+//    }
   }
 
 
-  io.done := false.B
+//  io.done := false.B
   queue.io.clear := false.B
   queue.io.enq.bits := dataIn
-  queue.io.enq.valid := queue.io.enq.ready && validReg === sRead//io.tensor(i).rd.data.valid
-  io.indTensor.rd.idx.valid := queue.io.enq.ready && state === sRead
-  io.indTensor.rd.idx.bits := pushCnt.value
-  io.indTensor.wr <> DontCare
+  queue.io.enq.valid := io.ind.valid && io.value.valid     //queue.io.enq.ready && validReg === sRead//io.tensor(i).rd.data.valid
+  io.ind.ready := queue.io.enq.ready && io.ind.valid && io.value.valid
+  io.value.ready := queue.io.enq.ready && io.ind.valid && io.value.valid
 
-  io.valTensor.rd.idx.valid := queue.io.enq.ready && state === sRead
-  io.valTensor.rd.idx.bits := pushCnt.value
-  io.valTensor.wr <> DontCare
 
   io.out <> queue.io.deq
   queue.io.idx := io.idx
   queue.io.numDeq := io.numDeq
 
-  when(queue.io.enq.ready && state  === sRead) {pushCnt.inc()}
+  when(queue.io.enq.fire()) {pushCnt.inc()}
   when(queue.io.deq.fire()) {
     popCnt.value := popCnt.value + io.numDeq
-  }
-
-  switch(state){
-    is(sIdle){
-      when(io.start){
-        state := sRead
-      }
-    }
-    is(sRead){
-      validReg := true.B
-      when(pushCnt.value === memTensorRows && queue.io.enq.ready){
-        validReg := false.B
-        pushCnt.value := 0.U
-        state := sClear
-      }
-    }
-    is(sClear){
-      when((popCnt.value === elemNum - io.numDeq - 1.U) && queue.io.deq.fire()){
-        popCnt.value := 0.U
-        queue.io.clear := true.B
-        io.done := true.B
-        state := sIdle
-      }
-    }
   }
 
 }
