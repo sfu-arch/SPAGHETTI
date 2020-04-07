@@ -141,7 +141,7 @@ class VME(implicit p: Parameters) extends Module {
   })
 
   val nReadClients = p(ShellKey).vmeParams.nReadClients
-  val rd_arb = Module(new Arbiter(new VMECmd, nReadClients))
+  val rd_arb = Module(new RRArbiter(new VMECmd, nReadClients))
   val rd_arb_chosen = RegEnable(rd_arb.io.chosen, rd_arb.io.out.fire())
 
   for (i <- 0 until nReadClients) { rd_arb.io.in(i) <> io.vme.rd(i).cmd }
@@ -169,7 +169,7 @@ class VME(implicit p: Parameters) extends Module {
 
   /* ----------------------------------------------------------------*/
   val nWriteClients = p(ShellKey).vmeParams.nWriteClients
-  val wr_arb = Module(new Arbiter(new VMECmd, nWriteClients))
+  val wr_arb = Module(new RRArbiter(new VMECmd, nWriteClients))
   val wr_arb_chosen = RegEnable(wr_arb.io.chosen, wr_arb.io.out.fire())
 
   for (i <- 0 until nWriteClients) { wr_arb.io.in(i) <> io.vme.wr(i).cmd }
