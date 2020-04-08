@@ -332,7 +332,7 @@ class TensorDataCtrl(tensorType: String = "none",
   val xmax_bytes = ((1 << mp.lenBits) * mp.dataBits / 8).U
   val xcnt = Reg(UInt(mp.lenBits.W))
   val xrem = Reg(chiselTypeOf(dec.xsize))
-  val xsize = (dec.xsize << log2Ceil(sizeFactor)) - 1.U
+  val xsize = (dec.xsize << log2Ceil(sizeFactor))
   val xmax = (1 << mp.lenBits).U
   val ycnt = Reg(chiselTypeOf(dec.ysize))
 
@@ -344,7 +344,7 @@ class TensorDataCtrl(tensorType: String = "none",
 
   when(io.start || (io.xupdate && stride)) {
     when(xsize < xmax) {
-      len := xsize
+      len := xsize - 1.U
       xrem := 0.U
     }.otherwise {
       len := xmax - 1.U
@@ -352,7 +352,7 @@ class TensorDataCtrl(tensorType: String = "none",
     }
   }.elsewhen(io.xupdate && split) {
     when(xrem < xmax) {
-      len := xrem
+      len := xrem - 1.U
       xrem := 0.U
     }.otherwise {
       len := xmax - 1.U
