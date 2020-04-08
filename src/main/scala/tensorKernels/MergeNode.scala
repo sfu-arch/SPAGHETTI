@@ -21,7 +21,7 @@ class MergeNodeIO()(implicit val p: Parameters) extends Module {
   })
 }
 
-class MergeNode(level: Int, ID: Int, rowBased: Boolean)(implicit p: Parameters)
+class MergeNode(level: Int, ID: Int, rowBased: Boolean, lastLevel: Int)(implicit p: Parameters)
   extends MergeNodeIO()(p) {
   require(level > 0, "Level must be greater than zero")
   require(isPow2(level), "Level must be power of two")
@@ -148,6 +148,11 @@ class MergeNode(level: Int, ID: Int, rowBased: Boolean)(implicit p: Parameters)
       popCnt1.value := 0.U
       popCnt2.value := 0.U
     }
+  }
+
+
+  if(lastLevel == level) {
+    demuxSel := false.B
   }
 
   io.eopOut := false.B

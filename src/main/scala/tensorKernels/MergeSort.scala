@@ -1,11 +1,12 @@
 
 package tensorKernels
 
-import chisel3.util.{Counter, Decoupled, Queue, isPow2, log2Ceil}
+import chisel3.util.{Arbiter, Counter, Decoupled, Queue, RRArbiter, isPow2, log2Ceil}
 import chisel3.{Flipped, Module, UInt, _}
 import config.{Parameters, XLEN}
 import interfaces.{BoolBundle, CooDataBundle}
 import muxes.{Demux, Mux}
+import shell.VMECmd
 
 class MergeSortIO(maxStreamLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
@@ -25,7 +26,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
   val num_Merger = log2Ceil(maxStreamLen)
 
   val merger = for (i <-0 until num_Merger) yield {
-    val Merger = Module(new MergeNode(level = math.pow(2,i).toInt, ID = 1, rowBased = rowBased))
+    val Merger = Module(new MergeNode(level = math.pow(2,i).toInt, ID = 1, rowBased = rowBased, lastLevel = math.pow(2, num_Merger-1).toInt))
     Merger
   }
 
@@ -36,13 +37,22 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
   merger(0).io.lastIn := io.lastIn
 
   val sel = RegInit(false.B)
+//  val sel =
   when(io.in.fire()) {sel := !sel}
+
+  when(merger(0).io.in1.ready){
+    sel := false.B
+  }.otherwise {
+    sel := true.B
+  }
+
+//  val rd_arb = Module(new Arbiter(new BoolBundle(Bool( )), 2))
 
   val demux = Module(new Demux(new CooDataBundle(UInt(p(XLEN).W)), Nops = 2))
 
   demux.io.en := io.in.valid
   demux.io.input <> io.in.bits
-  demux.io.sel := sel
+  demux.io.sel := merger(0).io.in2.ready
 
   merger(0).io.in1.bits <> demux.io.outputs(0)
   merger(0).io.in2.bits <> demux.io.outputs(1)
@@ -50,7 +60,8 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
   merger(0).io.in1.valid := demux.io.outputs(0).valid
   merger(0).io.in2.valid := demux.io.outputs(1).valid
 
-  io.in.ready := Mux(sel, merger(0).io.in2.ready, merger(0).io.in1.ready)
+//  io.in.ready := Mux(sel, merger(0).io.in2.ready, merger(0).io.in1.ready)
+  io.in.ready := merger(0).io.in2.ready || merger(0).io.in1.ready
 
   for (i <-1 until num_Merger) {
     merger(i).io.in1 <> merger(i-1).io.out1
