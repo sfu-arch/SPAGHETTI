@@ -113,7 +113,7 @@ class StreamLoad(bufSize: Int, tensorType: String = "none", debug: Boolean = fal
 
   // write-to-sram
 
-  queue.io.enq.bits := VecInit(io.vme_rd.data.bits).asTypeOf(queue.io.enq.bits)
+  queue.io.enq.bits := io.vme_rd.data.bits.asTypeOf(queue.io.enq.bits)
   queue.io.enq.valid := io.vme_rd.data.valid
 
   io.out.bits := queue.io.deq.bits.asUInt()

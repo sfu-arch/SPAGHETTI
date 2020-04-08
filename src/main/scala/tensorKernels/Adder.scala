@@ -43,6 +43,7 @@ class Adder[L <: Shapes : OperatorNRSCAL](ID: Int)(shape: => L)(implicit p: Para
   io.lastOut := RegNext(io.lastIn)
 
   val data = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))
+  val dataValid = RegInit(false.B)
 
   val FU = Module(new NRSCALFU(shape, lanes = shape.getLength(), opCode = "Add"))
 
@@ -66,6 +67,6 @@ class Adder[L <: Shapes : OperatorNRSCAL](ID: Int)(shape: => L)(implicit p: Para
   }
 
   io.out.bits := data
-  io.out.valid := RegNext(io.in.valid) && !(data.row === io.in.bits.row && data.col === io.in.bits.col)
+  io.out.valid := (io.in.valid && !(data.row === io.in.bits.row && data.col === io.in.bits.col)) || io.lastIn
   io.in.ready := io.out.ready
 }
