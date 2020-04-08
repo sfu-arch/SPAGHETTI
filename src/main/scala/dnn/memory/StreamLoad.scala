@@ -38,8 +38,10 @@ class StreamLoad(bufSize: Int, tensorType: String = "none", debug: Boolean = fal
   require(bufSize > math.pow(2, mp.lenBits) * width, "bufSize should be greater than size of each stream chunk")
 
 
-  val sizeFactor = 1 //width / width
-  val strideFactor = width //tp.tensorLength * tp.tensorWidth
+//  val sizeFactor = 1 //width / width
+//  val strideFactor = 2//width //tp.tensorLength * tp.tensorWidth
+  val sizeFactor = tp.tensorLength * tp.numMemBlock
+  val strideFactor = tp.tensorLength * tp.tensorWidth
 
   val dec = io.inst.asTypeOf(new MemDecode)
   val dataCtrl = Module(
@@ -50,7 +52,7 @@ class StreamLoad(bufSize: Int, tensorType: String = "none", debug: Boolean = fal
   val set = Reg(UInt(log2Ceil(tp.tensorLength).W))
 
 
-  val queue = Module(new MIMOQueue(UInt(p(XLEN).W), entries = bufSize, width, NumOuts = 1))
+  val queue = Module(new MIMOQueue(UInt(p(XLEN).W), entries = bufSize, tp.tensorWidth, NumOuts = 1))
   queue.io.clear := false.B
 
   val sIdle :: sReadCmd :: sReadData :: Nil =

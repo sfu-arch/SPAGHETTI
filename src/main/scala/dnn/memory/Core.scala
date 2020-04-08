@@ -82,7 +82,7 @@ class CoreConfig
         CoreParams(
           batch = 1,
           blockOut = 8,
-          blockIn = 8, //16,
+          blockIn = 2, //16,
           inpBits = 32,//8,
           wgtBits = 32,//8,
           kernelSize = 9,
