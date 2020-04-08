@@ -62,13 +62,13 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
 
   val shape = new vecN(1, 0, false)
 
-  val indDMA_A =  Module(new inStreamDMA(bufSize = 34, memTensorType))
-  val valDMA_A =  Module(new inStreamDMA(bufSize = 34,  memTensorType))
-  val ptrDMA_A =  Module(new inStreamDMA(bufSize = 34, memTensorType))
+  val indDMA_A =  Module(new inStreamDMA(bufSize = 40, memTensorType))
+  val valDMA_A =  Module(new inStreamDMA(bufSize = 40,  memTensorType))
+  val ptrDMA_A =  Module(new inStreamDMA(bufSize = 40, memTensorType))
 
-  val indDMA_B =  Module(new inStreamDMA(bufSize = 34, memTensorType))
-  val valDMA_B =  Module(new inStreamDMA(bufSize = 34, memTensorType))
-  val ptrDMA_B =  Module(new inStreamDMA(bufSize = 34, memTensorType))
+  val indDMA_B =  Module(new inStreamDMA(bufSize = 40, memTensorType))
+  val valDMA_B =  Module(new inStreamDMA(bufSize = 40, memTensorType))
+  val ptrDMA_B =  Module(new inStreamDMA(bufSize = 40, memTensorType))
 
   val shapeTransformer_A = Module(new CooShapeTransformer(rowBased = true, memTensorType)(segShape))
   val shapeTransformer_B = Module(new CooShifter(rowBased = false, 100, memTensorType)(segShape))

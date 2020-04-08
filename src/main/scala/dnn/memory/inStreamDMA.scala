@@ -2,7 +2,7 @@
 package dnn.memory
 
 import chisel3._
-import chisel3.util.Decoupled
+import chisel3.util._
 import config._
 import interfaces.CooDataBundle
 import shell._
@@ -40,12 +40,12 @@ class inStreamDMA(bufSize: Int, memTensorType: String = "none")(implicit p: Para
 
   io.done := strLoad.io.done
 
-  val width =  p(ShellKey).memParams.dataBits / p(XLEN)
+//  val width =  p(ShellKey).memParams.dataBits / p(XLEN)
 
   val tl_Inst = Wire(new MemDecode)
-  val memTensorRows = Mux(io.len % width.U === 0.U,
-                          io.len / width.U,
-                          (io.len / width.U) + 1.U)
+  val memTensorRows = Mux(io.len % tp.tensorWidth.U === 0.U,
+                          io.len / tp.tensorWidth.U,
+                          (io.len / tp.tensorWidth.U) + 1.U)
 
   tl_Inst.xpad_0 := 0.U
   tl_Inst.xpad_1 := 0.U
