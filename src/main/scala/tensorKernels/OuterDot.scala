@@ -234,7 +234,7 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
 //    }
     is(sExec) {
 
-      when(ptrST_A.io.out.valid && ptrST_B.io.out.valid && shapeTransformer_A.io.out.valid && shapeTransformer_B.io.out.valid) {
+      when(ptrST_A.io.out.valid && ptrST_B.io.out.valid) {
         when(mul.io.scal.ready && mul.io.vec(0).ready && !colAisZero && !rowBisZero) {
           bCnt.inc()
           when(bCnt.value === ptrST_B.io.out.bits - 1.U) {
@@ -248,12 +248,12 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
               ptrST_B.io.out.ready := true.B
             }
           }
-        }.elsewhen(colAisZero && !rowBisZero) {
+        }.elsewhen(colAisZero && !rowBisZero && shapeTransformer_B.io.out.valid) {
           shapeTransformer_B.io.out.ready := true.B
           ptrST_A.io.out.ready := true.B
           ptrST_B.io.out.ready := true.B
 
-        }.elsewhen(rowBisZero && !colAisZero) {
+        }.elsewhen(rowBisZero && !colAisZero && shapeTransformer_A.io.out.valid) {
           shapeTransformer_A.io.out.ready := true.B
           aCnt.inc()
           when(aCnt.value === ptrST_A.io.out.bits - 1.U) {
