@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.util._
 
 trait ISAConstants{
-  val INST_BITS = 128
+  val INST_BITS = 160
 
   val OP_BITS = 3
 
@@ -31,7 +31,7 @@ trait ISAConstants{
   val M_ID_BITS          = 2
   val M_SRAM_OFFSET_BITS = 16
   val M_DRAM_OFFSET_BITS = 32
-  val M_SIZE_BITS        = 16
+  val M_SIZE_BITS        = 32
   val M_STRIDE_BITS      = 16
   val M_PAD_BITS         = 4
 

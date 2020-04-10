@@ -34,7 +34,7 @@ endif
 
 TOP = TensorStrainersSimAccel
 BUILD_NAME = build
-USE_TRACE = 1
+USE_TRACE = 0
 LIBNAME = libhw
 
 NUM_Segment =  1
