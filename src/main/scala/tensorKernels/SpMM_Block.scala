@@ -52,6 +52,7 @@ class SpMM_BlockIO(numSegments: Int, numColMerger: Int, memTensorType: String = 
 
     val inDMA_time = Output(UInt(mp.addrBits.W))
     val merge_time = Output(UInt(mp.addrBits.W))
+    val multiplicationDone = Output(Bool ( ))
 
 
     val outDMA_len = Vec(numColMerger, Output(UInt(mp.addrBits.W)))
@@ -145,6 +146,24 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     col_merger(i).io.lastIn := arbiter.io.lastOut(i)
     outDMA(i).io.in <> col_merger(i).io.out
     outDMA(i).io.last := col_merger(i).io.lastOut
+  }
+
+  /* ================================================================== *
+    *                  last signal of Col_mergers                       *
+    * ================================================================== */
+  val last = for (i <- 0 until numColMerger) yield {
+    val lastReg = RegInit(init = false.B)
+    lastReg
+  }
+
+  for (i <- 0 until numColMerger) yield{
+    when (col_merger(i).io.lastOut) {
+      last(i) := true.B
+    }
+  }
+  io.multiplicationDone := last.reduceLeft(_&&_)
+  when (last.reduceLeft(_ && _)) {
+    last.foreach(a => a := false.B)
   }
 
   /* ================================================================== *

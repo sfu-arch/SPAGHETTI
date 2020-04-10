@@ -44,10 +44,16 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, maxRowLen: Int, maxColLen
      *                           Connections                            *
      * ================================================================== */
 
+  val mulTime = RegInit(0.U)
+  when(block.io.multiplicationDone) {
+    mulTime := cycle_count.value
+  }
+
   io.vcr.ecnt(0).bits := cycle_count.value
+  io.vcr.ecnt(1).bits := mulTime
 
   for (i <- 0 until numColMerger) {
-    io.vcr.ecnt(i+1).bits := block.io.outDMA_len(i)
+    io.vcr.ecnt(i+2).bits := block.io.outDMA_len(i)
   }
 
   /* ================================================================== *

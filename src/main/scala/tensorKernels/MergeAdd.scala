@@ -10,7 +10,6 @@ import node.{Shapes, vecN}
 class MergeAddIO(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val lastIn = Input(Bool( ))
-//    val lastIn = Input(Bool( ))
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
     val lastOut = Output(Bool( ))
