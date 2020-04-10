@@ -117,4 +117,4 @@ cleanV:
 	-rm $(verilator_build_dir)/*
 
 clean:
-	-rm -rf $(build_dir) target project/target project/project
+	-rm -rf $(build_dir)/chisel $(build_dir)/verilator target project/target project/project
