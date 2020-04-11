@@ -38,8 +38,8 @@ class MinArbiter(n: Int)(implicit p: Parameters)
   grant(n-1) := true.B
 
   for (i <- n-1 to 0 by -1) {
-    when (io.active && io.in(i).valid &&
-      ((io.in(chosen).valid && io.in(i).bits.row < io.in(chosen).bits.row) || (!io.in(chosen).valid))  ) {
+    when (io.active && io.in(i).valid){ // &&
+//      ((io.in(chosen).valid && io.in(i).bits.row < io.in(chosen).bits.row) || (!io.in(chosen).valid))  ) {
       grant.foreach(a => a := false.B)
       grant(i) := true.B
       chosen = i
