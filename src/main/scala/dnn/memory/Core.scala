@@ -104,7 +104,7 @@ class CoreConfig
           intWgtP2MemDepth = 10,
 
           accMemDepth = 2048,
-          outMemDepth = 50000,
+          outMemDepth = 150000,
           instQueueEntries = 512
         )
     })
