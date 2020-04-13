@@ -17,9 +17,8 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class SpMM_BlockIO(numSegments: Int, numColMerger: Int, memTensorType: String = "none")(implicit val p: Parameters)
+class SpMM_BlockIO(numSegments: Int, numColMerger: Int)(implicit val p: Parameters)
   extends Module {
-  val tpMem = new TensorParams(memTensorType)
 
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -60,10 +59,9 @@ class SpMM_BlockIO(numSegments: Int, numColMerger: Int, memTensorType: String = 
 }
 
 class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : OperatorCooSCAL]
-(numSegments: Int, numColMerger: Int, memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
+(numSegments: Int, numColMerger: Int, numVC: Int, VCDepth: Int,  maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
-  extends SpMM_BlockIO(numSegments, numColMerger, memTensorType)(p) {
-
+  extends SpMM_BlockIO(numSegments, numColMerger)(p) {
 
   val seg = for (i <- 0 until numSegments) yield {
     val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(segShape))
@@ -75,8 +73,12 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     rowMerger
   }
 
+  val VC = for (i <- 0 until numSegments) yield {
+    val channel = Module(new VirtualChannel(N = numVC, VCDepth = VCDepth))
+    channel
+  }
 //  val arbiter = Module(new WeightedArbiter(n = numSegments))
-  val arbiter = Module(new ModArbiter(numIns = numSegments, numOuts = numColMerger))
+  val arbiter = Module(new ModArbiter(numIns = numSegments * numVC, numOuts = numColMerger))
 
   val col_merger = for (i <- 0 until numColMerger) yield {
     val colMerger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
@@ -126,8 +128,36 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     row_merger(i).io.eopIn := seg(i).io.eopOut
     row_merger(i).io.lastIn := seg(i).io.lastOut
 
-    arbiter.io.in(i) <> row_merger(i).io.out
-    arbiter.io.eopIn(i) := row_merger(i).io.eopOut
+    VC(i).io.in <> row_merger(i).io.out
+    VC(i).io.eopIn := row_merger(i).io.eopOut
+
+//    arbiter.io.in(i) <> row_merger(i).io.out
+//    arbiter.io.eopIn(i) := row_merger(i).io.eopOut
+  }
+
+  val isFinished = for (i <- 0 until numSegments) yield {
+    val eop = RegInit(init = false.B)
+    eop
+  }
+  when(isFinished.reduceLeft(_&&_) && !VC.map(_.io.out.map(_.valid).reduceLeft(_||_)).reduceLeft(_||_)) {
+    isFinished.foreach(a => a := false.B)
+  }
+  for (i <- 0 until numSegments) {
+    when (row_merger(i).io.eopOut) {isFinished(i) := true.B}
+  }
+
+  val active = Wire(Vec(numSegments, Bool( )))
+  for (i <- 0 until numSegments) {
+    active(i) := isFinished(i) || row_merger(i).io.out.valid
+  }
+
+  arbiter.io.activate := active.reduceLeft(_&&_)
+
+  for (i <- 0 until numSegments) {
+    for (j <- 0 until numVC) {
+      arbiter.io.in(i * numVC + j) <> VC(i).io.out(j)
+      arbiter.io.eopIn(i * numVC + j) := VC(i).io.eopOut(j)
+    }
   }
 
   for (i <- 0 until numColMerger) {

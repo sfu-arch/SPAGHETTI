@@ -12,7 +12,7 @@ import tensorKernels.SpMM_Block
   *
   * SparseTensorCore is able to perform the linear algebraic computations on sparse tensors.
   */
-class SpTensorCore(numSegment: Int, numColMerger: Int, maxRowLen: Int, maxColLen: Int)(implicit val p: Parameters) extends Module {
+class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
@@ -28,7 +28,7 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, maxRowLen: Int, maxColLen
   val shape = new FPvecN(1, S, 0)
 //  val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block(numSegments = numSegment, numColMerger = numColMerger, memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegment, numColMerger = numColMerger, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
 
   /* ================================================================== *
      *                      Basic Block signals                         *

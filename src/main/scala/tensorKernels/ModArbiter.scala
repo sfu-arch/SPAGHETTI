@@ -13,6 +13,7 @@ class ModArbiterIO(numIns: Int, numOuts: Int)(implicit val p: Parameters) extend
     val in  = Flipped(Vec(numIns, Decoupled(new CooDataBundle(UInt(p(XLEN).W)))))
     val out = Vec(numOuts, Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
 //    val chosen = Vec(numOuts, Output(UInt(log2Ceil(numIns).W)))
+    val activate = Input(Bool( ))
 
     val eopIn = Vec(numIns, Input(Bool( )))
 //    val lastIn = Vec(numIns, Input(Bool( )))
@@ -90,7 +91,8 @@ class ModArbiter(numIns: Int, numOuts: Int)(implicit p: Parameters)
 
 
   for (i <- 0 until numOuts) {
-    arbiter(i).io.active := active.reduceLeft(_&&_)
+//    arbiter(i).io.active := active.reduceLeft(_&&_)
+    arbiter(i).io.active := io.activate
   }
 
   for (i <- 0 until numOuts) {
@@ -106,7 +108,8 @@ class ModArbiter(numIns: Int, numOuts: Int)(implicit p: Parameters)
   for (i <- 0 until numIns) {
     io.in(i).ready := readyMux(i).io.output.data && readyMux(i).io.output.valid
     demux(i).io.input := io.in(i).bits
-    demux(i).io.en := io.in(i).valid && active.reduceLeft(_&&_) && (quotient(i) === minQuotient)
+//    demux(i).io.en := io.in(i).valid && active.reduceLeft(_&&_) && (quotient(i) === minQuotient)
+    demux(i).io.en := io.in(i).valid && io.activate && (quotient(i) === minQuotient)
     readyMux(i).io.en := demux(i).io.en
     demux(i).io.sel := io.in(i).bits.row % numOuts.U
     readyMux(i).io.sel := io.in(i).bits.row % numOuts.U

@@ -60,7 +60,7 @@ driver_main.cc| +-------------+Master Client    |                 |
 
 
 /* Receives a counter value as input. Waits for N cycles and then returns N + const as output */
-class SpAccel(numSegment: Int = 1, numColMerger: Int = 1, maxRowLen: Int = 4000, maxColLen: Int = 2000)(implicit p: Parameters) extends Module {
+class SpAccel(numSegment: Int = 1, numColMerger: Int = 1, numVC: Int = 1, VCDepth: Int = 2, maxRowLen: Int = 4000, maxColLen: Int = 2000)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val host = new AXILiteClient(p(ShellKey).hostParams)
 //    val host = new AXIClient(p(ShellKey).hostParams)
@@ -74,7 +74,7 @@ class SpAccel(numSegment: Int = 1, numColMerger: Int = 1, maxRowLen: Int = 4000,
   val vcr = Module(new VCR)
   val vme = Module(new VME)
 //  val core = Module(new DNNCoreTest)
-  val core = Module(new SpTensorCore(numSegment, numColMerger, maxRowLen, maxColLen))
+  val core = Module(new SpTensorCore(numSegment = numSegment, numColMerger = numColMerger, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen))
 
   /* ================================================================== *
    *                       Host to VCR Connection                       *
