@@ -23,6 +23,8 @@
 #include "c_runtime_api.h"
 #include <stdint.h>
 
+#include "svdpi.h"
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -82,7 +84,7 @@ extern "C"
         dpi8_t req_len,
         dpi64_t req_addr,
         dpi8_t wr_valid,
-        dpi64_t wr_value,
+        const svLogicVecVal* wr_value,
         dpi8_t *rd_valid,
         dpi64_t *rd_value,
         dpi8_t rd_ready);

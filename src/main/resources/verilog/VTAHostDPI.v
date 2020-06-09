@@ -17,9 +17,11 @@
  * under the License.
  */
 
+`define DATA_LEN_HOST 32
+
 module VTAHostDPI #
 ( parameter ADDR_BITS = 16,
-  parameter DATA_BITS = 32
+  parameter DATA_BITS = `DATA_LEN_HOST
 )
 (
   input                        clock,
