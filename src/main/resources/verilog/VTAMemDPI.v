@@ -45,9 +45,9 @@ module VTAMemDPI #
     input  byte     unsigned req_len,
     input  longint  unsigned req_addr,
     input  byte     unsigned wr_valid,
-    input  logic [DATA_BITS - 1: 0] wr_value,
+    input  logic [DATA_BITS - 1 : 0] wr_value,
     output byte     unsigned rd_valid,
-    output longint  unsigned rd_value,
+    output logic [DATA_BITS - 1 : 0] rd_value,
     input  byte     unsigned rd_ready
   );
 
@@ -56,17 +56,18 @@ module VTAMemDPI #
   typedef logic [31:0] dpi32_t;
   typedef logic [63:0] dpi64_t;
 
-  typedef logic [DATA_BITS - 1: 0] dpiMem_t;
+  typedef logic [ADDR_BITS - 1:0] dpiAddr_t;
+  typedef logic [DATA_BITS - 1:0] dpiMem_t;
 
   dpi1_t  __reset;
   dpi8_t  __req_valid;
   dpi8_t  __req_opcode;
   dpi8_t  __req_len;
-  dpi64_t __req_addr;
+  dpiAddr_t __req_addr;
   dpi8_t  __wr_valid;
   dpiMem_t __wr_value;
   dpi8_t  __rd_valid;
-  dpi64_t __rd_value;
+  dpiMem_t __rd_value;
   dpi8_t  __rd_ready;
 
   always_ff @(posedge clock) begin
