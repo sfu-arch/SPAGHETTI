@@ -81,8 +81,8 @@ class CoreConfig
       case CoreKey =>
         CoreParams(
           batch = 1,
-          blockOut = 8,
-          blockIn = 2, //16,
+          blockOut = 16,
+          blockIn = 16, //16,
           inpBits = 32,//8,
           wgtBits = 32,//8,
           kernelSize = 9,

@@ -67,6 +67,7 @@ class TensorParams(tensorType: String = "none")(implicit p: Parameters)
 
   val memBlockBits = p(ShellKey).memParams.dataBits
   val numMemBlock = (tensorWidth * tensorElemBits) / memBlockBits
+  require(numMemBlock > 0, "numMemBlock should be greater than zero")
 
   val memDepth =
     if (tensorType == "inp")

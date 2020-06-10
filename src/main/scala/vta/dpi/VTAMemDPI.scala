@@ -29,8 +29,9 @@ import vta.shell._
 trait VTAMemDPIParams {
   val dpiLenBits = 8
   val dpiAddrBits = 64
-  val dpiDataBits = 64
+  val dpiDataBits = 512
 }
+
 
 /** Memory master interface.
   *

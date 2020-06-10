@@ -17,7 +17,7 @@
  * under the License.
  */
 
-`define DATA_LEN_MEM 64
+`define DATA_LEN_MEM 512
 
 module VTAMemDPI #
 ( parameter LEN_BITS = 8,
