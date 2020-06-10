@@ -297,6 +297,11 @@ make TOP=TestAccel2
 
 ```
 
+## Get F1Shell
+```
+make verilog TOP=TestAccelAWS
+```
+
 ## To change configuration 
 * `DNNCorePW.scala` change `Hx,Wx,Cx,Cb,Fx`, where `C=Cx*Cb` and Cx ~= 1.
 * `VME.scala` 
