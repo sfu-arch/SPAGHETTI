@@ -22,6 +22,7 @@ package accel
 import chisel3._
 import chisel3.util._
 import config._
+import dandelion.shell.{ConfigBusMaster, DCRF1}
 import shell._
 import dnn.memory.CoreParams
 
@@ -146,5 +147,71 @@ class SpAccel(numSegment: Int = 1, numColMerger: Int = 1, numVC: Int = 1, VCDept
 }
 
 
+
+/* Receives a counter value as input. Waits for N cycles and then returns N + const as output */
+class SpAccelF1(numSegment: Int = 1, numColMerger: Int = 1, numVC: Int = 1, VCDepth: Int = 2, maxRowLen: Int = 4000, maxColLen: Int = 2000)(implicit p: Parameters) extends Module {
+  val io = IO(new Bundle {
+    val host = new ConfigBusMaster()
+    val mem = new AXIMaster(p(ShellKey).memParams)
+    val debug = Output(Vec(9,Bool()))
+  })
+
+  val debug = RegInit(VecInit(Seq.fill(10)(false.B)))
+  io.debug zip debug map {case(a,b) => a:=b}
+
+  val vcr = Module(new DCRF1)
+  val vme = Module(new VME)
+  //  val core = Module(new DNNCoreTest)
+  val core = Module(new SpTensorCore(numSegment = numSegment, numColMerger = numColMerger, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen))
+
+  /* ================================================================== *
+   *                       Host to VCR Connection                       *
+   * ================================================================== */
+
+  io.host <> vcr.io.host
+//  io.host.aw.ready := vcr.io.host.aw.ready
+//  vcr.io.host.aw.valid := io.host.aw.valid
+//  vcr.io.host.aw.bits.addr := io.host.aw.bits.addr
+//  io.host.w.ready := vcr.io.host.w.ready
+//  vcr.io.host.w.valid := io.host.w.valid
+//  vcr.io.host.w.bits.data := io.host.w.bits.data
+//  vcr.io.host.w.bits.strb := io.host.w.bits.strb
+//  vcr.io.host.b.ready := io.host.b.ready
+//  io.host.b.valid := vcr.io.host.b.valid
+//  io.host.b.bits.resp := vcr.io.host.b.bits.resp
+//  //  io.host.b.bits.id := io.host.w.bits.id
+//
+//  io.host.ar.ready := vcr.io.host.ar.ready
+//  vcr.io.host.ar.valid := io.host.ar.valid
+//  vcr.io.host.ar.bits.addr := io.host.ar.bits.addr
+//  vcr.io.host.r.ready := io.host.r.ready
+//  io.host.r.valid := vcr.io.host.r.valid
+//  io.host.r.bits.data := vcr.io.host.r.bits.data
+//  io.host.r.bits.resp := vcr.io.host.r.bits.resp
+  //  io.host.r.bits.id := io.host.ar.bits.id
+
+  //  io.host.b.bits.user <> DontCare
+  //  io.host.r.bits.user <> DontCare
+  //  io.host.r.bits.last := 1.U
+  /* ================================================================== *
+   *                       VCR to Core Connection                       *
+   * ================================================================== */
+  //  core.io.vcr <> vcr.io.vcr
+  core.io.vcr.launch := vcr.io.dcr.launch
+  vcr.io.dcr.finish := core.io.vcr.finish
+  vcr.io.dcr.ecnt := core.io.vcr.ecnt
+  core.io.vcr.vals := vcr.io.dcr.vals
+  core.io.vcr.ptrs := vcr.io.dcr.ptrs
+  /* ================================================================== *
+   *                       Core to VME Connection                       *
+   * ================================================================== */
+  vme.io.vme <> core.io.vme
+  /* ================================================================== *
+   *                        VME to Mem Connection                       *
+   * ================================================================== */
+  io.mem <> vme.io.mem
+
+
+}
 
 

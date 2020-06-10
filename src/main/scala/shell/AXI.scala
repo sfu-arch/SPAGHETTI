@@ -26,11 +26,11 @@ import memory._
 
 case class AXIParams(
   coherent: Boolean = false,
-  idBits: Int = 1,
+  idBits: Int = 16,
   addrBits: Int = 32,
   dataBits: Int = 64,
   lenBits: Int = 8,
-  userBits: Int = 1
+  userBits: Int = 10
 )
 {
   require (addrBits > 0)
