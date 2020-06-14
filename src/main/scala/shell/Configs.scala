@@ -41,7 +41,7 @@ class De10Config (numSegments: Int = 1, numColMerger: Int = 1) extends Config((s
       addrBits = 32, dataBits = 512, userBits = 5,
       lenBits = 8, // limit to 16 beats, instead of 256 beats in AXI4
       coherent = true),
-    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 2, num_ctrl = 1),
+    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 3, num_ctrl = 1),
     vmeParams = new VMESimParams(numSegments = numSegments, numColMerger = numColMerger))
 })
 
@@ -54,7 +54,7 @@ class AWSConfig (numSegments: Int = 1, numColMerger: Int = 1)extends Config((sit
       addrBits = 64, dataBits = 512, userBits = 10,
       lenBits = 8,
       coherent = false),
-    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 2, num_ctrl = 1),
+    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 3, num_ctrl = 1),
     vmeParams = new VMESimParams(numSegments = numSegments, numColMerger = numColMerger))
 })
 
@@ -74,6 +74,6 @@ class PynqConfig (numSegments: Int = 1, numColMerger: Int = 1) extends Config((s
       dataBits = 64,
       lenBits = 8,
       userBits = 1),
-    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 2, num_ctrl = 1),
+    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 3, num_ctrl = 1),
     vmeParams = new VMESimParams(numSegments = numSegments, numColMerger = numColMerger))
 })

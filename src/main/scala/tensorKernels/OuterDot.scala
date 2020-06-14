@@ -50,8 +50,9 @@ class OuterDotIO(memTensorType: String = "none")(implicit val p: Parameters)
     val eopOut = Output(Bool( ))
     val lastOut = Output(Bool( ))
 
-    val inDMA_time = Output(UInt(mp.addrBits.W))
-    val merge_time = Output(UInt(mp.addrBits.W))
+//    val inDMA_time = Output(UInt(mp.addrBits.W))
+//    val merge_time = Output(UInt(mp.addrBits.W))
+
   })
 }
 
@@ -82,11 +83,11 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   val state = RegInit(sIdle)
 
 
-  val inDMA_time = Counter(2000)
-  val merge_time = Counter(2000)
+//  val inDMA_time = Counter(100000000)
+//  val merge_time = Counter(2000)
 
-  io.inDMA_time := inDMA_time.value
-  io.merge_time := merge_time.value
+//  io.inDMA_time := inDMA_time.value
+//  io.merge_time := merge_time.value
 
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
@@ -189,13 +190,13 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
     *                          State Machine                            *
     * ================================================================== */
 
-  when(state === sIdle){
-    inDMA_time.value := 0.U
-    merge_time.value := 0.U
-  }
+//  when(state === sIdle){
+//    inDMA_time.value := 0.U
+//    merge_time.value := 0.U
+//  }
 
 //  when(state === sInRead) {inDMA_time.inc()}
-  when(state === sExec) {merge_time.inc()}
+//  when(state === sExec) {inDMA_time.inc()}
 
   val bCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
   val aCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)

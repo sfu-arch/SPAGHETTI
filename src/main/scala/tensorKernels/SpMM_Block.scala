@@ -49,9 +49,10 @@ class SpMM_BlockIO(numSegments: Int, numColMerger: Int)(implicit val p: Paramete
     val vme_wr_col = Vec(numColMerger, new VMEWriteMaster)
     val vme_wr_val = Vec(numColMerger, new VMEWriteMaster)
 
-    val inDMA_time = Output(UInt(mp.addrBits.W))
-    val merge_time = Output(UInt(mp.addrBits.W))
+//    val inDMA_time = Output(UInt(mp.addrBits.W))
+//    val merge_time = Output(UInt(mp.addrBits.W))
     val multiplicationDone = Output(Bool ( ))
+    val inStreamingDone = Output(Bool ( ))
 
 
     val outDMA_len = Vec(numColMerger, Output(UInt(mp.addrBits.W)))
@@ -90,12 +91,12 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     outD
   }
 
-  val inDMA_time = Counter(2000)
-  val outDMA_time = Counter(2000)
-  val merge_time = Counter(2000)
+//  val inDMA_time = Counter(2000)
+//  val outDMA_time = Counter(2000)
+//  val merge_time = Counter(2000)
 
-  io.inDMA_time := inDMA_time.value
-  io.merge_time := merge_time.value
+//  io.inDMA_time := inDMA_time.value
+//  io.merge_time := merge_time.value
 
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
@@ -194,6 +195,24 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   io.multiplicationDone := last.reduceLeft(_&&_)
   when (last.reduceLeft(_ && _)) {
     last.foreach(a => a := false.B)
+  }
+
+  /* ================================================================== *
+    *                  Done signal of segments                          *
+    * ================================================================== */
+  val segDone = for (i <- 0 until numSegments) yield {
+    val doneReg = RegInit(init = false.B)
+    doneReg
+  }
+
+  for (i <- 0 until numSegments) yield{
+    when (seg(i).io.lastOut) {
+      segDone(i) := true.B
+    }
+  }
+  io.inStreamingDone := segDone.reduceLeft(_&&_)
+  when (segDone.reduceLeft(_ && _)) {
+    segDone.foreach(a => a := false.B)
   }
 
   /* ================================================================== *

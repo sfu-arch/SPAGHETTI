@@ -20,9 +20,6 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
 
   val cycle_count = new Counter(100000000)
 
-//  val numSegments = 3
-//  val numColMerger = 3
-
 
   val S = new FType(8, 24)
   val shape = new FPvecN(1, S, 0)
@@ -49,11 +46,17 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
     mulTime := cycle_count.value
   }
 
+  val inStreamingTime = RegInit(0.U)
+  when(block.io.inStreamingDone) {
+    inStreamingTime := cycle_count.value
+  }
+
   io.vcr.ecnt(0).bits := cycle_count.value
   io.vcr.ecnt(1).bits := mulTime
+  io.vcr.ecnt(2).bits := inStreamingTime
 
   for (i <- 0 until numColMerger) {
-    io.vcr.ecnt(i+2).bits := block.io.outDMA_len(i)
+    io.vcr.ecnt(i+3).bits := block.io.outDMA_len(i)
   }
 
   /* ================================================================== *
