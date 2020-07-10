@@ -1,24 +1,20 @@
-package dnnnode
+package tensorKernels
 
 import chisel3.experimental.{DataMirror, requireIsChiselType}
 import chisel3.util._
 import chisel3.{Flipped, Module, UInt, _}
 
-class StoreQueueIO[T <: Data](private val gen: T, val entries: Int, NumOuts: Int) extends Bundle
+class URAM_QueueIO[T <: Data](private val gen: T, val entries: Int) extends Bundle
 {
   /** I/O to enqueue data (client is producer, and Queue object is consumer), is [[Chisel.DecoupledIO]] flipped. */
   val enq = Flipped(EnqIO(gen))
-//  val enq = Flipped(EnqIO(Vec(NumIns, gen)))
   /** I/O to dequeue data (client is consumer and Queue object is producer), is [[Chisel.DecoupledIO]]*/
-//  val deq = Flipped(DeqIO(gen))
-  val deq = Flipped(DeqIO(Vec(NumOuts, gen)))
+  val deq = Flipped(DeqIO(gen))
   /** The current amount of data in the queue */
   val count = Output(UInt(log2Ceil(entries + 1).W))
-
-  val last = Input(Bool())
 }
 
-/** A hardware module implementing a Queue
+/** A hardware module implementing a URAM Queue
   * @param gen The type of data to queue
   * @param entries The max number of entries in the queue
   * @param pipe True if a single entry queue can run at full throughput (like a pipeline). The ''ready'' signals are
@@ -33,14 +29,15 @@ class StoreQueueIO[T <: Data](private val gen: T, val entries: Int, NumOuts: Int
   * }}}
   */
 
-class StoreQueue[T <: Data](gen: T,
-                       val entries: Int, NumOuts: Int,
-                       pipe: Boolean = false,
-                       flow: Boolean = false)
-                      (implicit compileOptions: chisel3.CompileOptions)
+class URAM_Queue[T <: Data](gen: T,
+                           val entries: Int,
+                           pipe: Boolean = false,
+                           flow: Boolean = false)
+                          (implicit compileOptions: chisel3.CompileOptions)
   extends Module() {
   require(entries > -1, "Queue must have non-negative number of entries")
   require(entries != 0, "Use companion object Queue.apply for zero entries")
+
   val genType = if (compileOptions.declaredTypeMustBeUnbound) {
     requireIsChiselType(gen)
     gen
@@ -52,64 +49,48 @@ class StoreQueue[T <: Data](gen: T,
     }
   }
 
-  val io = IO(new StoreQueueIO(genType, entries, NumOuts))
+  val io = IO(new URAM_QueueIO(genType, entries))
 
-  val ram = Mem(entries, genType)
+//  val ram = Mem(entries, genType)
+  val uram = Module(new UltraRAM(DWIDTH = genType.getWidth, NBPIPE = 1))
+  uram.io.clk := clock
+  uram.io.rst := reset
+  uram.io.regce := true.B
+  uram.io.mem_en := true.B
+  uram.io.regce := true.B
+  uram.io.we := false.B
+
+
   val enq_ptr = Counter(entries)
-//  val deq_ptr = Counter(entries)
-  val deq_ptr = RegInit(0.U((log2Ceil(entries)+1).W)) //Counter(entries)
+  val deq_ptr = Counter(entries)
   val maybe_full = RegInit(false.B)
 
-  val bufCount = io.count
-  val ptr_match = enq_ptr.value === deq_ptr
+  val ptr_match = enq_ptr.value === deq_ptr.value
   val empty = ptr_match && !maybe_full
   val full = ptr_match && maybe_full
   val do_enq = WireDefault(io.enq.fire())
   val do_deq = WireDefault(io.deq.fire())
 
-  val last = RegInit(init = false.B)
-  when(io.last) {last := true.B}
-
+  uram.io.waddr := enq_ptr.value
+  uram.io.din := io.enq.bits.asUInt()
   when (do_enq) {
-    ram(enq_ptr.value) := io.enq.bits
+//    ram(enq_ptr.value) := io.enq.bits
+    uram.io.we := true.B
     enq_ptr.inc()
   }
   when (do_deq) {
-//    deq_ptr.value := deq_ptr.value + NumOuts.U
-    deq_ptr := (deq_ptr + NumOuts.U) % entries.U
-    when (last || io.last) {
-      deq_ptr := 0.U
-      enq_ptr.value := 0.U
-      last := false.B
-    }
+    deq_ptr.inc()
   }
-
-  when(last) {
-    io.enq.ready := false.B
-  }.otherwise {
-    io.enq.ready := !full
-  }
-
   when (do_enq =/= do_deq) {
     maybe_full := do_enq
   }
 
-//  io.enq.ready := !full
+  io.deq.valid := !empty
+  io.enq.ready := !full
+//  io.deq.bits := ram(deq_ptr.value)
 
-  val ptr_diff = enq_ptr.value - deq_ptr
-
-
-  when (bufCount > (NumOuts - 1).U | last) {
-    io.deq.valid := true.B
-  }.otherwise {
-    io.deq.valid := false.B
-  }
-  for (i <- 0 until NumOuts) {
-//    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram((deq_ptr + i.U) % entries.U),
-//      Mux(i.U >= bufCount, 0.U.asTypeOf(genType), ram((deq_ptr + i.U) % entries.U)))
-
-    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram((deq_ptr + i.U) % entries.U), 0.U.asTypeOf(genType))
-  }
+  uram.io.raddr := deq_ptr.value
+  io.deq.bits := uram.io.dout.asTypeOf(io.deq.bits)
 
   if (flow) {
     when (io.enq.valid) { io.deq.valid := true.B }
@@ -124,16 +105,19 @@ class StoreQueue[T <: Data](gen: T,
     when (io.deq.ready) { io.enq.ready := true.B }
   }
 
+  val ptr_diff = enq_ptr.value - deq_ptr.value
   if (isPow2(entries)) {
     io.count := Mux(maybe_full && ptr_match, entries.U, 0.U) | ptr_diff
   } else {
     io.count := Mux(ptr_match,
       Mux(maybe_full,
         entries.asUInt, 0.U),
-      Mux(deq_ptr > enq_ptr.value,
+      Mux(deq_ptr.value > enq_ptr.value,
         entries.asUInt + ptr_diff, ptr_diff))
   }
+
 }
+
 
 
 

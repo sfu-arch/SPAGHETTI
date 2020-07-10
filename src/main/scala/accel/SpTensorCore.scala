@@ -6,7 +6,7 @@ import chisel3.{when, _}
 import config._
 import node.{FPvecN, matNxN, vecN}
 import shell._
-import tensorKernels.SpMM_Block
+import tensorKernels.{SpMM_Block, URAM_Queue}
 
 /** SparseTensorCore.
   *
@@ -27,6 +27,13 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
 
   val block = Module(new SpMM_Block(numSegments = numSegment, numColMerger = numColMerger, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
 
+//  val macc = Module(new macc(SIZEIN = 16, SIZEOUT = p(XLEN)+1))
+//  val uram = Module(new UltraRAM())
+  val queue = Module(new URAM_Queue(UInt(72.W), entries = 10, pipe = true))
+
+  val sIdle :: sExec :: sFinish :: Nil = Enum(3)
+
+  val state = RegInit(sIdle)
   /* ================================================================== *
      *                      Basic Block signals                         *
      * ================================================================== */
@@ -36,6 +43,42 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
     block.io.segSize(i) := io.vcr.vals(i * 3 + 2)
 
   }
+
+  queue.io.enq.bits := cycle_count.value
+  queue.io.enq.valid := state === sExec
+
+  queue.io.deq.ready := state === sExec
+
+
+  /*uram.io.clk := clock
+  uram.io.rst := reset
+  uram.io.we := false.B
+  uram.io.mem_en := true.B
+  uram.io.regce := true.B
+
+  val idle :: sWrite :: sRead :: Nil = Enum(3)
+
+  val uramState = RegInit(idle)
+
+  switch(uramState) {
+    is(idle) {
+      when(io.vcr.launch) {
+        uramState := sWrite
+      }
+    }
+    is(sWrite) {
+      uram.io.we := true.B
+      uram.io.din := cycle_count.value + 1.U
+      uram.io.waddr := 3.U
+      uramState := sRead
+    }
+
+    is(sRead) {
+      uram.io.raddr := 3.U
+
+    }
+  }*/
+
 
   /* ================================================================== *
      *                           Connections                            *
@@ -93,9 +136,7 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
     block.io.outBaseAddr_val(i) := io.vcr.ptrs((numSegment * 6) + (3 * i) + 2)
   }
 
-  val sIdle :: sExec :: sFinish :: Nil = Enum(3)
 
-  val state = RegInit(sIdle)
   switch(state) {
     is(sIdle) {
       when(io.vcr.launch) {
