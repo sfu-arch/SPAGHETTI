@@ -46,7 +46,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
     sel := true.B
   }
 
-//  val rd_arb = Module(new Arbiter(new BoolBundle(Bool( )), 2))
+
 
   val demux = Module(new Demux(new CooDataBundle(UInt(p(XLEN).W)), Nops = 2))
 

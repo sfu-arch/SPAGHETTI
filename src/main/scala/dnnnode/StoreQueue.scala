@@ -105,10 +105,11 @@ class StoreQueue[T <: Data](gen: T,
     io.deq.valid := false.B
   }
   for (i <- 0 until NumOuts) {
+    io.deq.bits(i) := ram((deq_ptr + i.U) % entries.U)
 //    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram((deq_ptr + i.U) % entries.U),
 //      Mux(i.U >= bufCount, 0.U.asTypeOf(genType), ram((deq_ptr + i.U) % entries.U)))
 
-    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram((deq_ptr + i.U) % entries.U), 0.U.asTypeOf(genType))
+//    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram((deq_ptr + i.U) % entries.U), 0.U.asTypeOf(genType))
   }
 
   if (flow) {
