@@ -95,10 +95,14 @@ class MergeNode(level: Int, ID: Int, rowBased: Boolean, lastLevel: Int)(implicit
   if(rowBased){
     when(queue1.io.deq.valid && queue2.io.deq.valid){
       mux.io.en := true.B
-      when((popCnt1.value < level.U) && ((queue1.io.deq.bits.row <= queue2.io.deq.bits.row) || popCnt2.value === level.U)) {
+      when((popCnt1.value < level.U) && (popCnt2.value === level.U ||
+        ((queue1.io.deq.bits.row < queue2.io.deq.bits.row) ||
+          ((queue1.io.deq.bits.row === queue2.io.deq.bits.row) && (queue1.io.deq.bits.col <= queue2.io.deq.bits.col))) )) {
         mux.io.sel := 0.U
         readyDemux.io.sel := 0.U
-      }.elsewhen((popCnt2.value < level.U) && ((queue1.io.deq.bits.row > queue2.io.deq.bits.row) || popCnt1.value === level.U)){
+      }.elsewhen((popCnt2.value < level.U) && (popCnt1.value === level.U ||
+        ((queue1.io.deq.bits.row > queue2.io.deq.bits.row) ||
+          ((queue1.io.deq.bits.row === queue2.io.deq.bits.row) && (queue1.io.deq.bits.col > queue2.io.deq.bits.col))) )){
         mux.io.sel := 1.U
         readyDemux.io.sel := 1.U
       }

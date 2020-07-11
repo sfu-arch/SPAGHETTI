@@ -24,11 +24,11 @@ class NRSCALFU[L <: Shapes : OperatorNRSCAL](shape: => L, lanes: Int, opCode: St
 
 class AdderIO(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
-    val eopIn = Input(Bool( ))
+//    val eopIn = Input(Bool( ))
     val lastIn = Input(Bool( ))
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
-    val eopOut = Output(Bool( ))
+//    val eopOut = Output(Bool( ))
     val lastOut = Output(Bool( ))
   })
 }
@@ -39,7 +39,7 @@ class Adder[L <: Shapes : OperatorNRSCAL](ID: Int)(shape: => L)(implicit p: Para
   /*===============================================*
    *                Connections                    *
    *===============================================*/
-  io.eopOut := RegNext(io.eopIn)
+//  io.eopOut := RegNext(io.eopIn)
   io.lastOut := RegNext(io.lastIn)
 
   val data = RegInit(CooDataBundle.default(0.U(p(XLEN).W)))

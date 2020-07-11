@@ -57,7 +57,7 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
   merger.io.in.valid := valid
 
   adder.io.lastIn := merger.io.lastOut
-  adder.io.eopIn := merger.io.eopOut
+//  adder.io.eopIn := merger.io.eopOut
   adder.io.in <> merger.io.out
 
   /* ================================================================== *

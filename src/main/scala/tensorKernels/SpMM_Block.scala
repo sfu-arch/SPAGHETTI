@@ -69,21 +69,22 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     outDot
   }
 
-  val row_merger = for (i <- 0 until numSegments) yield {
-    val rowMerger = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
-    rowMerger
+  val sorter = for (i <- 0 until numSegments) yield {
+    val sortNode = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
+    sortNode
   }
 
   val VC = for (i <- 0 until numSegments) yield {
     val channel = Module(new VirtualChannel(N = numVC, VCDepth = VCDepth))
     channel
   }
-//  val arbiter = Module(new WeightedArbiter(n = numSegments))
+
   val arbiter = Module(new ModArbiter(numIns = numSegments * numVC, numOuts = numColMerger))
 
-  val col_merger = for (i <- 0 until numColMerger) yield {
-    val colMerger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
-    colMerger
+  val reducer = for (i <- 0 until numColMerger) yield {
+//    val colMerger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
+    val adder = Module(new Adder(ID = 1)(segShape))
+    adder
   }
 
   val outDMA = for (i <- 0 until numColMerger) yield {
@@ -125,12 +126,12 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     io.vme_rd_val(2 * i + 0) <> seg(i).io.vme_rd_val(0)
     io.vme_rd_val(2 * i + 1) <> seg(i).io.vme_rd_val(1)
 
-    row_merger(i).io.in <> seg(i).io.out
-    row_merger(i).io.eopIn := seg(i).io.eopOut
-    row_merger(i).io.lastIn := seg(i).io.lastOut
+    sorter(i).io.in <> seg(i).io.out
+    sorter(i).io.eopIn := seg(i).io.eopOut
+    sorter(i).io.lastIn := seg(i).io.lastOut
 
-    VC(i).io.in <> row_merger(i).io.out
-    VC(i).io.eopIn := row_merger(i).io.eopOut
+    VC(i).io.in <> sorter(i).io.out
+    VC(i).io.eopIn := sorter(i).io.eopOut
 
 //    arbiter.io.in(i) <> row_merger(i).io.out
 //    arbiter.io.eopIn(i) := row_merger(i).io.eopOut
@@ -144,12 +145,12 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     isFinished.foreach(a => a := false.B)
   }
   for (i <- 0 until numSegments) {
-    when (row_merger(i).io.eopOut) {isFinished(i) := true.B}
+    when (sorter(i).io.eopOut) {isFinished(i) := true.B}
   }
 
   val active = Wire(Vec(numSegments, Bool( )))
   for (i <- 0 until numSegments) {
-    active(i) := isFinished(i) || row_merger(i).io.out.valid
+    active(i) := isFinished(i) || sorter(i).io.out.valid
   }
 
   arbiter.io.activate := active.reduceLeft(_&&_)
@@ -172,11 +173,11 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     outDMA(i).io.baddr_col := io.outBaseAddr_col(i)
     outDMA(i).io.baddr_val := io.outBaseAddr_val(i)
 
-    col_merger(i).io.in <> arbiter.io.out(i)
+    reducer(i).io.in <> arbiter.io.out(i)
 
-    col_merger(i).io.lastIn := arbiter.io.lastOut(i)
-    outDMA(i).io.in <> col_merger(i).io.out
-    outDMA(i).io.last := col_merger(i).io.lastOut
+    reducer(i).io.lastIn := arbiter.io.lastOut(i)
+    outDMA(i).io.in <> reducer(i).io.out
+    outDMA(i).io.last := reducer(i).io.lastOut
   }
 
   /* ================================================================== *
@@ -188,7 +189,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   }
 
   for (i <- 0 until numColMerger) yield{
-    when (col_merger(i).io.lastOut) {
+    when (reducer(i).io.lastOut) {
       last(i) := true.B
     }
   }
