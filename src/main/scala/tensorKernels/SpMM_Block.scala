@@ -60,9 +60,9 @@ class SpMM_BlockIO(numSegments: Int, numColMerger: Int)(implicit val p: Paramete
 }
 
 class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : OperatorCooSCAL]
-(numSegments: Int, numColMerger: Int, numVC: Int, VCDepth: Int,  maxRowLen: Int, maxColLen: Int)
+(numSegments: Int, numReducer: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)
 (segShape: => L)(implicit p: Parameters)
-  extends SpMM_BlockIO(numSegments, numColMerger)(p) {
+  extends SpMM_BlockIO(numSegments, numReducer)(p) {
 
   val seg = for (i <- 0 until numSegments) yield {
     val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(segShape))
@@ -79,15 +79,15 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     channel
   }
 
-  val arbiter = Module(new ModArbiter(numIns = numSegments * numVC, numOuts = numColMerger))
+  val arbiter = Module(new ModArbiter(numIns = numSegments * numVC, numOuts = numReducer))
 
-  val reducer = for (i <- 0 until numColMerger) yield {
+  val reducer = for (i <- 0 until numReducer) yield {
 //    val colMerger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
     val adder = Module(new Adder(ID = 1)(segShape))
     adder
   }
 
-  val outDMA = for (i <- 0 until numColMerger) yield {
+  val outDMA = for (i <- 0 until numReducer) yield {
     val outD = Module(new outDMA_coo(bufSize = 20, memTensorType = "out"))
     outD
   }
@@ -162,7 +162,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     }
   }
 
-  for (i <- 0 until numColMerger) {
+  for (i <- 0 until numReducer) {
     io.outDMA_len(i) := outDMA(i).io.outLen
 
     io.vme_wr_row(i) <> outDMA(i).io.vme_wr_row
@@ -183,12 +183,12 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   /* ================================================================== *
     *                  last signal of Col_mergers                       *
     * ================================================================== */
-  val last = for (i <- 0 until numColMerger) yield {
+  val last = for (i <- 0 until numReducer) yield {
     val lastReg = RegInit(init = false.B)
     lastReg
   }
 
-  for (i <- 0 until numColMerger) yield{
+  for (i <- 0 until numReducer) yield{
     when (reducer(i).io.lastOut) {
       last(i) := true.B
     }
@@ -219,7 +219,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   /* ================================================================== *
     *         outDot -> row_merger -> col_merger -> outDMA              *
     * ================================================================== */
-  val doneR = for (i <- 0 until numColMerger) yield {
+  val doneR = for (i <- 0 until numReducer) yield {
     val doneReg = RegInit(init = false.B)
     doneReg
   }
@@ -229,7 +229,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     doneR.foreach(a => a := false.B)
   }
 
-  for (i <- 0 until numColMerger) yield{
+  for (i <- 0 until numReducer) yield{
     when (outDMA(i).io.done) {
       doneR(i) := true.B
     }

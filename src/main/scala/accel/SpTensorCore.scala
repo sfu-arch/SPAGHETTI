@@ -12,7 +12,7 @@ import tensorKernels.{SpMM_Block, URAM_Queue}
   *
   * SparseTensorCore is able to perform the linear algebraic computations on sparse tensors.
   */
-class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit val p: Parameters) extends Module {
+class SpTensorCore(numSegment: Int, numReducer: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
@@ -25,7 +25,7 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
   val shape = new FPvecN(1, S, 0)
 //  val shape = new vecN(1, 0, false)
 
-  val block = Module(new SpMM_Block(numSegments = numSegment, numColMerger = numColMerger, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
+  val block = Module(new SpMM_Block(numSegments = numSegment, numReducer = numReducer, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
 
 //  val macc = Module(new macc(SIZEIN = 16, SIZEOUT = p(XLEN)+1))
 //  val uram = Module(new UltraRAM())
@@ -98,7 +98,7 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
   io.vcr.ecnt(1).bits := mulTime
   io.vcr.ecnt(2).bits := inStreamingTime
 
-  for (i <- 0 until numColMerger) {
+  for (i <- 0 until numReducer) {
     io.vcr.ecnt(i+3).bits := block.io.outDMA_len(i)
   }
 
@@ -126,7 +126,7 @@ class SpTensorCore(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
     block.io.val_B_BaseAddr(i) := io.vcr.ptrs(i * 6 + 5)
   }
 
-  for (i <- 0 until numColMerger) {
+  for (i <- 0 until numReducer) {
     io.vme.wr(3 * i + 0) <> block.io.vme_wr_row(i)
     io.vme.wr(3 * i + 1) <> block.io.vme_wr_col(i)
     io.vme.wr(3 * i + 2) <> block.io.vme_wr_val(i)
