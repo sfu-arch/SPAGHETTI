@@ -6,7 +6,7 @@ import chisel3.{when, _}
 import config._
 import node.{FPvecN, matNxN, vecN}
 import shell._
-import tensorKernels.{SpMM_Block, URAM_Queue}
+import tensorKernels.{SpMM, SpMM_Block, URAM_Queue}
 
 /** SparseTensorCore.
   *
@@ -26,6 +26,7 @@ class SpTensorCore(numSegment: Int, numReducer: Int, numVC: Int, VCDepth: Int, m
 //  val shape = new vecN(1, 0, false)
 
   val block = Module(new SpMM_Block(numSegments = numSegment, numReducer = numReducer, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
+//  val block = Module(new SpMM(numSegments = numSegment, numReducer = numReducer, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
 
 //  val macc = Module(new macc(SIZEIN = 16, SIZEOUT = p(XLEN)+1))
 //  val uram = Module(new UltraRAM())

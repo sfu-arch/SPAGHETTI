@@ -14,6 +14,7 @@ import junctions.SplitCallNew
 import memory.{ReadTypMemoryController, WriteTypMemoryController}
 import node.{FXmatNxN, TypLoad, TypStore}
 import shell._
+import tensorKernels.URAM_Queue
 
 
  /** Register File.
@@ -57,8 +58,9 @@ class DNNCoreTest(implicit p: Parameters) extends Module {
     val vme = new VMEMaster
   })
 
-//  val buffer = Module(new Queue(io.vme.rd(0).data.bits.cloneType,40))
-  val queue = Module(new MIMOQueue(UInt(p(XLEN).W), entries = 40, io.vme.rd(0).data.bits.getWidth / p(XLEN), NumOuts = 2))
+  val buffer = Module(new URAM_Queue(UInt(p(XLEN).W),40))
+//   val buffer = Module(new Queue(UInt(p(XLEN).W),40))
+//  val buffer = Module(new MIMOQueue(UInt(p(XLEN).W), entries = 40, io.vme.rd(0).data.bits.getWidth / p(XLEN), NumOuts = 2))
 
   val sIdle :: sReq :: sBusy :: Nil = Enum(3)
   val Rstate = RegInit(sIdle)
@@ -71,7 +73,7 @@ class DNNCoreTest(implicit p: Parameters) extends Module {
   }
 
 
-   queue.io.clear := false.B
+//   buffer.io.clear := false.B
 
   io.vcr.ecnt(0.U).bits := cycle_count.value
 
@@ -103,6 +105,7 @@ class DNNCoreTest(implicit p: Parameters) extends Module {
     }
   }
 
+
   io.vme.rd(0).cmd.bits.addr := io.vcr.ptrs(0)
   io.vme.rd(0).cmd.bits.len := io.vcr.vals(1)
   io.vme.rd(0).cmd.valid := false.B
@@ -130,17 +133,19 @@ class DNNCoreTest(implicit p: Parameters) extends Module {
   }
 
 
-   queue.io.enq.valid := io.vme.rd(0).data.valid
-   queue.io.enq.bits := io.vme.rd(0).data.bits.asTypeOf(queue.io.enq.bits)
-   io.vme.rd(0).data.ready := queue.io.enq.ready
+   buffer.io.enq.valid := io.vme.rd(0).data.valid
+   buffer.io.enq.bits := io.vme.rd(0).data.bits.asTypeOf(buffer.io.enq.bits) + io.vcr.vals(0)
+   io.vme.rd(0).data.ready := buffer.io.enq.ready
 
-   val res = Wire(Vec(2, UInt(p(XLEN).W)))
+   /*val res = Wire(Vec(2, UInt(p(XLEN).W)))
    for (i <- 0 until 2) {
-     res(i) := queue.io.deq.bits(i) + io.vcr.vals(0)
-   }
+     res(i) := buffer.io.deq.bits(i) + io.vcr.vals(0)
+   }*/
 
-   io.vme.wr(0).data.bits := res.asUInt()
-   io.vme.wr(0).data.valid := queue.io.deq.valid
-   queue.io.deq.ready := io.vme.wr(0).data.ready
+//   io.vme.wr(0).data <> buffer.io.deq
+
+   io.vme.wr(0).data.bits := buffer.io.deq.bits + io.vcr.vals(0)
+   io.vme.wr(0).data.valid := buffer.io.deq.valid
+   buffer.io.deq.ready := io.vme.wr(0).data.ready
 }
 

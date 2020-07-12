@@ -54,7 +54,9 @@ class AWSConfig (numSegments: Int = 1, numColMerger: Int = 1)extends Config((sit
       addrBits = 64, dataBits = 512, userBits = 10,
       lenBits = 8,
       coherent = false),
-    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 3, num_ctrl = 1),
+//    vcrParams = new VCRSimParams(num_ptrs = numSegments*6 + numColMerger*3, num_vals = numSegments*3, num_event = numColMerger + 3, num_ctrl = 1),
+    
+    vcrParams = new VCRSimParams(num_ptrs = 2, num_vals = 2, num_event = 1, num_ctrl = 1),
     vmeParams = new VMESimParams(numSegments = numSegments, numColMerger = numColMerger))
 })
 
