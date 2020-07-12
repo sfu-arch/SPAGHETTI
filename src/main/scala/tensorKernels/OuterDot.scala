@@ -47,11 +47,7 @@ class OuterDotIO(memTensorType: String = "none")(implicit val p: Parameters)
     val vme_rd_val = Vec(2, new VMEReadMaster)
 
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
-    val eopOut = Output(Bool( ))
-    val lastOut = Output(Bool( ))
-
-//    val inDMA_time = Output(UInt(mp.addrBits.W))
-//    val merge_time = Output(UInt(mp.addrBits.W))
+    val eop = Output(Bool( ))
 
   })
 }
@@ -209,8 +205,8 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   when(ptrST_A.io.out.fire()){outCnt_a.inc()}
   when(ptrST_B.io.out.fire()){outCnt_b.inc()}
 
-  io.eopOut := false.B
-  io.lastOut := false.B
+  io.eop := false.B
+//  io.lastOut := false.B
 
   val colAisZero = Wire(Bool())
   colAisZero := false.B
@@ -270,8 +266,8 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
       }
 
       when(outCnt_a.value === io.segSize && outCnt_b.value === io.segSize) {
-        io.eopOut := true.B
-        io.lastOut := true.B
+        io.eop := true.B
+//        io.lastOut := true.B
         state := sIdle
       }
     }

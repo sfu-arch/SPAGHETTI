@@ -49,8 +49,6 @@ class SpMM_BlockIO(numSegments: Int, numColMerger: Int)(implicit val p: Paramete
     val vme_wr_col = Vec(numColMerger, new VMEWriteMaster)
     val vme_wr_val = Vec(numColMerger, new VMEWriteMaster)
 
-//    val inDMA_time = Output(UInt(mp.addrBits.W))
-//    val merge_time = Output(UInt(mp.addrBits.W))
     val multiplicationDone = Output(Bool ( ))
     val inStreamingDone = Output(Bool ( ))
 
@@ -127,8 +125,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
     io.vme_rd_val(2 * i + 1) <> seg(i).io.vme_rd_val(1)
 
     sorter(i).io.in <> seg(i).io.out
-    sorter(i).io.eopIn := seg(i).io.eopOut
-    sorter(i).io.lastIn := seg(i).io.lastOut
+    sorter(i).io.eopIn := seg(i).io.eop
 
     VC(i).io.in <> sorter(i).io.out
     VC(i).io.eopIn := sorter(i).io.eopOut
@@ -175,9 +172,9 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
 
     reducer(i).io.in <> arbiter.io.out(i)
 
-    reducer(i).io.lastIn := arbiter.io.lastOut(i)
+    reducer(i).io.eopIn := arbiter.io.eopOut(i)
     outDMA(i).io.in <> reducer(i).io.out
-    outDMA(i).io.last := reducer(i).io.lastOut
+    outDMA(i).io.last := reducer(i).io.eopOut
   }
 
   /* ================================================================== *
@@ -189,7 +186,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   }
 
   for (i <- 0 until numReducer) yield{
-    when (reducer(i).io.lastOut) {
+    when (reducer(i).io.eopOut) {
       last(i) := true.B
     }
   }
@@ -207,7 +204,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   }
 
   for (i <- 0 until numSegments) yield{
-    when (seg(i).io.lastOut) {
+    when (seg(i).io.eop) {
       segDone(i) := true.B
     }
   }

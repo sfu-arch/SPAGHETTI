@@ -84,12 +84,6 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     outD
   }
 
-//  val inDMA_time = Counter(2000)
-//  val outDMA_time = Counter(2000)
-//  val merge_time = Counter(2000)
-
-//  io.inDMA_time := inDMA_time.value
-//  io.merge_time := merge_time.value
 
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
@@ -119,8 +113,8 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     io.vme_rd_val(2 * i + 1) <> seg(i).io.vme_rd_val(1)
 
     sorter(i).io.in <> seg(i).io.out
-    sorter(i).io.eopIn := seg(i).io.eopOut
-    sorter(i).io.lastIn := seg(i).io.lastOut
+    sorter(i).io.eopIn := seg(i).io.eop
+//    sorter(i).io.lastIn := seg(i).io.lastOut
 
     VC(i).io.in <> sorter(i).io.out
     VC(i).io.eopIn := sorter(i).io.eopOut
@@ -167,9 +161,9 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
 
     reducer(i).io.in <> arbiter.io.out(i)
 
-    reducer(i).io.lastIn := arbiter.io.lastOut(i)
+    reducer(i).io.eopIn := arbiter.io.lastOut(i)
     outDMA(i).io.in <> reducer(i).io.out
-    outDMA(i).io.last := reducer(i).io.lastOut
+    outDMA(i).io.last := reducer(i).io.eopOut
   }
 
   /* ================================================================== *
@@ -181,7 +175,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   }
 
   for (i <- 0 until numReducer) yield{
-    when (reducer(i).io.lastOut) {
+    when (reducer(i).io.eopOut) {
       last(i) := true.B
     }
   }
@@ -199,7 +193,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   }
 
   for (i <- 0 until numSegments) yield{
-    when (seg(i).io.lastOut) {
+    when (seg(i).io.eop) {
       segDone(i) := true.B
     }
   }

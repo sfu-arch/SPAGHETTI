@@ -16,9 +16,8 @@ class ModArbiterIO(numIns: Int, numOuts: Int)(implicit val p: Parameters) extend
     val activate = Input(Bool( ))
 
     val eopIn = Vec(numIns, Input(Bool( )))
-//    val lastIn = Vec(numIns, Input(Bool( )))
 
-    val lastOut = Vec(numOuts, Output(Bool( )))
+    val eopOut = Vec(numOuts, Output(Bool( )))
   })
 }
 
@@ -53,11 +52,11 @@ class ModArbiter(numIns: Int, numOuts: Int)(implicit p: Parameters)
   }
 
 
-  io.lastOut.foreach(a => a := false.B)
+  io.eopOut.foreach(a => a := false.B)
 
   when(isFinished.reduceLeft(_&&_)) {
     isFinished.foreach(a => a := false.B)
-    io.lastOut.foreach(a => a := true.B)
+    io.eopOut.foreach(a => a := true.B)
   }
 
   val active = Wire(Vec(numIns, Bool( )))

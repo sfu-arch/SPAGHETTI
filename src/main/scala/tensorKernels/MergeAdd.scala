@@ -9,10 +9,10 @@ import node.{Shapes, vecN}
 
 class MergeAddIO(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
-    val lastIn = Input(Bool( ))
+    val eopIn = Input(Bool( ))
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
-    val lastOut = Output(Bool( ))
+    val eopOut = Output(Bool( ))
   })
 }
 
@@ -31,7 +31,7 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
 //  val valid = RegNext(io.in.valid)
   val lastR = RegInit(false.B)
 
-  when(io.lastIn) {
+  when(io.eopIn) {
     lastR := true.B
   }
   when(merger.io.in.ready && lastR) {
@@ -46,7 +46,7 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
   }
 
 
-  merger.io.lastIn := merger.io.in.ready && lastR
+//  merger.io.lastIn := merger.io.in.ready && lastR
   merger.io.eopIn := false.B
   when((io.in.bits.row =/= data.row && io.in.valid) || (merger.io.in.ready && lastR)) {
     merger.io.eopIn := true.B
@@ -56,7 +56,7 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
   merger.io.in.bits := data
   merger.io.in.valid := valid
 
-  adder.io.lastIn := merger.io.lastOut
+  adder.io.eopIn := merger.io.eopOut
 //  adder.io.eopIn := merger.io.eopOut
   adder.io.in <> merger.io.out
 
@@ -65,6 +65,6 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
      * ================================================================== */
 
   io.out <> adder.io.out
-  io.lastOut := adder.io.lastOut
+  io.eopOut := adder.io.eopOut
 
 }
