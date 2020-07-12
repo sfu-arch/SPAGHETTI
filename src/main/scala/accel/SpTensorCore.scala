@@ -12,7 +12,7 @@ import tensorKernels.{SpMM, SpMM_Block, URAM_Queue}
   *
   * SparseTensorCore is able to perform the linear algebraic computations on sparse tensors.
   */
-class SpTensorCore(numSegment: Int, numReducer: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit val p: Parameters) extends Module {
+class SpTensorCore(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
@@ -26,10 +26,10 @@ class SpTensorCore(numSegment: Int, numReducer: Int, numVC: Int, VCDepth: Int, m
 //  val shape = new vecN(1, 0, false)
 
 //  val block = Module(new SpMM_Block(numSegments = numSegment, numReducer = numReducer, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
-  val block = Module(new SpMM(numSegments = numSegment, numSorter = numReducer, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen)(shape))
+  val block = Module(new SpMM(numSegments = numSegment, numSorter = numSorter, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen)(shape))
 
 //  val uram = Module(new UltraRAM())
-  val queue = Module(new URAM_Queue(UInt(72.W), entries = 10, pipe = true))
+//  val queue = Module(new URAM_Queue(UInt(72.W), entries = 10, pipe = true))
 
   val sIdle :: sExec :: sFinish :: Nil = Enum(3)
 
@@ -44,40 +44,10 @@ class SpTensorCore(numSegment: Int, numReducer: Int, numVC: Int, VCDepth: Int, m
 
   }
 
-  queue.io.enq.bits := cycle_count.value
-  queue.io.enq.valid := state === sExec
+//  queue.io.enq.bits := cycle_count.value
+//  queue.io.enq.valid := state === sExec
 
-  queue.io.deq.ready := state === sExec
-
-
-  /*uram.io.clk := clock
-  uram.io.rst := reset
-  uram.io.we := false.B
-  uram.io.mem_en := true.B
-  uram.io.regce := true.B
-
-  val idle :: sWrite :: sRead :: Nil = Enum(3)
-
-  val uramState = RegInit(idle)
-
-  switch(uramState) {
-    is(idle) {
-      when(io.vcr.launch) {
-        uramState := sWrite
-      }
-    }
-    is(sWrite) {
-      uram.io.we := true.B
-      uram.io.din := cycle_count.value + 1.U
-      uram.io.waddr := 3.U
-      uramState := sRead
-    }
-
-    is(sRead) {
-      uram.io.raddr := 3.U
-
-    }
-  }*/
+//  queue.io.deq.ready := state === sExec
 
 
   /* ================================================================== *
@@ -98,7 +68,7 @@ class SpTensorCore(numSegment: Int, numReducer: Int, numVC: Int, VCDepth: Int, m
   io.vcr.ecnt(1).bits := mulTime
   io.vcr.ecnt(2).bits := inStreamingTime
 
-  for (i <- 0 until numReducer) {
+  for (i <- 0 until numSorter) {
     io.vcr.ecnt(i+3).bits := block.io.outDMA_len(i)
   }
 
@@ -126,7 +96,7 @@ class SpTensorCore(numSegment: Int, numReducer: Int, numVC: Int, VCDepth: Int, m
     block.io.val_B_BaseAddr(i) := io.vcr.ptrs(i * 6 + 5)
   }
 
-  for (i <- 0 until numReducer) {
+  for (i <- 0 until numSorter) {
     io.vme.wr(3 * i + 0) <> block.io.vme_wr_row(i)
     io.vme.wr(3 * i + 1) <> block.io.vme_wr_col(i)
     io.vme.wr(3 * i + 2) <> block.io.vme_wr_val(i)

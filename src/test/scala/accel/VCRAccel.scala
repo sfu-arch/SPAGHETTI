@@ -33,11 +33,11 @@ import dnn.memory._
 
 
 /** Test. This generates a testbench file for simulation */
-class TestAccelAWS(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit p: Parameters) extends MultiIOModule {
+class TestAccelAWS(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit p: Parameters) extends MultiIOModule {
   val sim_clock = IO(Input(Clock()))
   val sim_wait = IO(Output(Bool()))
   val sim_shell = Module(new AXISimShell)
-  val vta_shell = Module(new SpAccel(numSegment, numColMerger, numVC, VCDepth, maxRowLen, maxColLen))
+  val vta_shell = Module(new SpAccel(numSegment, numSorter, numVC, VCDepth, maxRowLen, maxColLen))
   sim_shell.sim_clock := sim_clock
   sim_wait := sim_shell.sim_wait
 
@@ -58,12 +58,12 @@ class TestAccelAWS(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int,
   // vta_shell.io.host <> sim_shell.host
 }
 
-class TensorStrainersSimAccel(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)
+class TensorStrainersSimAccel(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)
                           (implicit val p: Parameters) extends MultiIOModule {
   val sim_clock = IO(Input(Clock()))
   val sim_wait = IO(Output(Bool()))
   val sim_shell = Module(new AXISimShell)
-  val vta_shell = Module(new SpAccel(numSegment, numColMerger, numVC, VCDepth, maxRowLen, maxColLen))
+  val vta_shell = Module(new SpAccel(numSegment, numSorter, numVC, VCDepth, maxRowLen, maxColLen))
   sim_shell.sim_clock := sim_clock
   sim_wait := sim_shell.sim_wait
 
@@ -85,25 +85,26 @@ class TensorStrainersSimAccel(numSegment: Int, numColMerger: Int, numVC: Int, VC
 /**
   * Configurations for various FPGA platforms
   * @param numSegment
-  * @param numColMerger
+  * @param numSorter
   */
 
-class DefaultDe10Config(numSegment: Int = 1, numColMerger: Int = 1)
-  extends Config(new De10Config(numSegments = numSegment, numColMerger = numColMerger) ++
+class DefaultDe10Config(numSegment: Int = 1, numSorter: Int = 1)
+  extends Config(new De10Config(numSegments = numSegment, numSorter = numSorter) ++
     new CoreConfig ++ new MiniConfig)
 
-class DefaultPynqConfig(numSegment: Int = 1, numColMerger: Int = 1)
-  extends Config(new PynqConfig(numSegments = numSegment, numColMerger = numColMerger) ++
+class DefaultPynqConfig(numSegment: Int = 1, numSorter: Int = 1)
+  extends Config(new PynqConfig(numSegments = numSegment, numSorter = numSorter) ++
     new CoreConfig ++ new MiniConfig)
 
-class DefaultAWSConfig(numSegment: Int = 1, numColMerger: Int = 1)
-  extends Config(new AWSConfig(numSegments = numSegment, numColMerger = numColMerger) ++
+class DefaultAWSConfig(numSegment: Int = 1, numSorter: Int = 1)
+  extends Config(new AWSConfig(numSegments = numSegment, numSorter = numSorter) ++
     new CoreConfig ++ new MiniConfig)
 
 
 
 object TensorStrainersSimAccelMain extends App {
   var numSegment = 1
+  var numSorter = 1
   var numColMerger = 1
   var numVC = 1
   var VCDepth = 2
@@ -112,6 +113,7 @@ object TensorStrainersSimAccelMain extends App {
 
   args.sliding(2, 2).toList.collect {
     case Array("--numSegment", argCtrl: String) => numSegment = argCtrl.toInt
+    case Array("--numSorter", argCtrl: String) => numSorter = argCtrl.toInt
     case Array("--numColMerger", argCtrl: String) => numColMerger = argCtrl.toInt
     case Array("--numVC", argCtrl: String) => numVC = argCtrl.toInt
     case Array("--VCDepth", argCtrl: String) => VCDepth = argCtrl.toInt
@@ -119,8 +121,8 @@ object TensorStrainersSimAccelMain extends App {
     case Array("--maxColLen", argCtrl: String) => maxColLen = argCtrl.toInt
   }
 
-  implicit val p: Parameters = new DefaultDe10Config(numSegment = numSegment, numColMerger = numColMerger)
-  chisel3.Driver.execute(args.take(4), () => new TensorStrainersSimAccel(numSegment = numSegment, numColMerger, numVC, VCDepth, maxRowLen, maxColLen))
+  implicit val p: Parameters = new DefaultDe10Config(numSegment = numSegment, numSorter = numSorter)
+  chisel3.Driver.execute(args.take(4), () => new TensorStrainersSimAccel(numSegment = numSegment, numSorter = numSorter, numVC, VCDepth, maxRowLen, maxColLen))
 }
 
 
@@ -129,12 +131,13 @@ object TestXilinxShellMain extends App {
   chisel3.Driver.execute(args, () => new XilinxShell())
 }
 object TestVTAShell2Main extends App {
-  implicit val p: Parameters = new DefaultDe10Config(numSegment = 1, numColMerger = 1)
+  implicit val p: Parameters = new DefaultDe10Config(numSegment = 1, numSorter = 1)
   chisel3.Driver.execute(args, () => new NoneAccel())
 }
 
 object TestAccelAWSMain extends App {
   var numSegment = 1
+  var numSorter = 1
   var numColMerger = 1
   var numVC = 1
   var VCDepth = 2
@@ -143,19 +146,21 @@ object TestAccelAWSMain extends App {
 
   args.sliding(2, 2).toList.collect {
     case Array("--numSegment", argCtrl: String) => numSegment = argCtrl.toInt
+    case Array("--numSorter", argCtrl: String) => numSorter = argCtrl.toInt
     case Array("--numColMerger", argCtrl: String) => numColMerger = argCtrl.toInt
     case Array("--numVC", argCtrl: String) => numVC = argCtrl.toInt
     case Array("--VCDepth", argCtrl: String) => VCDepth = argCtrl.toInt
     case Array("--maxRowLen", argCtrl: String) => maxRowLen = argCtrl.toInt
     case Array("--maxColLen", argCtrl: String) => maxColLen = argCtrl.toInt
   }
-  implicit val p: Parameters = new DefaultAWSConfig(numSegment = 1, numColMerger = 1)
-  chisel3.Driver.execute(args.take(4), () => new F1Shell(numSegment = numSegment, numColMerger, numVC, VCDepth, maxRowLen, maxColLen))
+  implicit val p: Parameters = new DefaultAWSConfig(numSegment = 1, numSorter = 1)
+  chisel3.Driver.execute(args.take(4), () => new F1Shell(numSegment = numSegment, numSorter = numSorter, numVC, VCDepth, maxRowLen, maxColLen))
 }
 
 object SpAccelMain extends App {
 
   var numSegment = 1
+  var numSorter = 1
   var numColMerger = 1
   var numVC = 1
   var VCDepth = 2
@@ -165,6 +170,7 @@ object SpAccelMain extends App {
 
   args.sliding(2, 2).toList.collect {
     case Array("--numSegment", argCtrl: String) => numSegment = argCtrl.toInt
+    case Array("--numSorter", argCtrl: String) => numSorter = argCtrl.toInt
     case Array("--numColMerger", argCtrl: String) => numColMerger = argCtrl.toInt
     case Array("--numVC", argCtrl: String) => numVC = argCtrl.toInt
     case Array("--VCDepth", argCtrl: String) => VCDepth = argCtrl.toInt
@@ -173,6 +179,6 @@ object SpAccelMain extends App {
 
   }
   implicit val p: Parameters = new DefaultDe10Config
-  chisel3.Driver.execute(args.take(4), () => new SpAccel(numSegment, numColMerger, numVC, VCDepth, maxRowLen, maxColLen))
+  chisel3.Driver.execute(args.take(4), () => new SpAccel(numSegment, numSorter, numVC, VCDepth, maxRowLen, maxColLen))
 }
 

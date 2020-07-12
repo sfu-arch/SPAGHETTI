@@ -125,7 +125,7 @@ class XilinxShell()(implicit p: Parameters) extends RawModule {
   * This is a wrapper shell mostly used to match Xilinx convention naming,
   * therefore we can pack VTA as an IP for IPI based flows.
   */
-class F1Shell(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit p: Parameters) extends RawModule {
+class F1Shell(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)(implicit p: Parameters) extends RawModule {
 
   val hp = p(ShellKey).hostParams
   val mp = p(ShellKey).memParams
@@ -137,7 +137,7 @@ class F1Shell(numSegment: Int, numColMerger: Int, numVC: Int, VCDepth: Int, maxR
 
 
   val shell = withClockAndReset(clock = ap_clk, reset = ~ap_rst_n) {
-    Module(new SpAccelF1(numSegment, numColMerger, numVC, VCDepth, maxRowLen, maxColLen))
+    Module(new SpAccelF1(numSegment, numSorter, numVC, VCDepth, maxRowLen, maxColLen))
   }
 
   // memory

@@ -61,21 +61,17 @@ driver_main.cc| +-------------+Master Client    |                 |
 
 
 /* Receives a counter value as input. Waits for N cycles and then returns N + const as output */
-class SpAccel(numSegment: Int = 1, numReducer: Int = 1, numVC: Int = 1, VCDepth: Int = 2, maxRowLen: Int = 4000, maxColLen: Int = 2000)(implicit p: Parameters) extends Module {
+class SpAccel(numSegment: Int = 1, numSorter: Int = 1, numVC: Int = 1, VCDepth: Int = 2, maxRowLen: Int = 4000, maxColLen: Int = 2000)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val host = new AXILiteClient(p(ShellKey).hostParams)
 //    val host = new AXIClient(p(ShellKey).hostParams)
     val mem = new AXIMaster(p(ShellKey).memParams)
-    val debug = Output(Vec(9,Bool()))
   })
-
-  val debug = RegInit(VecInit(Seq.fill(10)(false.B)))
-  io.debug zip debug map {case(a,b) => a:=b}
 
   val vcr = Module(new VCR)
   val vme = Module(new VME)
 //  val core = Module(new DNNCoreTest)
-  val core = Module(new SpTensorCore(numSegment = numSegment, numReducer = numReducer, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen))
+  val core = Module(new SpTensorCore(numSegment = numSegment, numSorter = numSorter, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen))
 
   /* ================================================================== *
    *                       Host to VCR Connection                       *
@@ -122,47 +118,24 @@ class SpAccel(numSegment: Int = 1, numReducer: Int = 1, numVC: Int = 1, VCDepth:
    * ================================================================== */
   io.mem <> vme.io.mem
 
-
-
-  /*when(io.host.ar.fire) {
-    //debug(0) := true.B
-    debug((io.host.ar.bits.addr >> 2).asUInt()) := true.B
-  }*/
-
-  /*when(io.host.r.fire) {
-    debug(io.host.r.bits.data) := true.B
-    //debug(1) := true.B
-  }*/
-
-  /*when(io.host.aw.fire) {
-    //debug(io.host.r.bits.data) := true.B
-    debug(2) := true.B
-  }
-
-  when(io.host.w.fire) {
-    //debug(io.host.r.bits.data) := true.B
-    debug(3) := true.B
-  }*/
-
 }
 
 
 
 /* Receives a counter value as input. Waits for N cycles and then returns N + const as output */
-class SpAccelF1(numSegment: Int = 1, numColMerger: Int = 1, numVC: Int = 1, VCDepth: Int = 2, maxRowLen: Int = 4000, maxColLen: Int = 2000)(implicit p: Parameters) extends Module {
+class SpAccelF1(numSegment: Int = 1, numSorter: Int = 1, numVC: Int = 1, VCDepth: Int = 2, maxRowLen: Int = 4000, maxColLen: Int = 2000)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val host = new ConfigBusMaster()
     val mem = new AXIMaster(p(ShellKey).memParams)
-    val debug = Output(Vec(9,Bool()))
   })
 
-  val debug = RegInit(VecInit(Seq.fill(10)(false.B)))
-  io.debug zip debug map {case(a,b) => a:=b}
+//  val debug = RegInit(VecInit(Seq.fill(10)(false.B)))
+//  io.debug zip debug map {case(a,b) => a:=b}
 
   val vcr = Module(new DCRF1)
   val vme = Module(new VME)
   //  val core = Module(new DNNCoreTest)
-  val core = Module(new SpTensorCore(numSegment = numSegment, numReducer = numColMerger, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen))
+  val core = Module(new SpTensorCore(numSegment = numSegment, numSorter = numSorter, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen))
 
   /* ================================================================== *
    *                       Host to VCR Connection                       *
