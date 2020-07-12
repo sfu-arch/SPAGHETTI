@@ -13,12 +13,12 @@ class AllocatorIO(numIns: Int, numOuts: Int)(implicit val p: Parameters) extends
     val in  = Flipped(Vec(numIns, Decoupled(new CooDataBundle(UInt(p(XLEN).W)))))
     val out = Vec(numOuts, Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
 //    val chosen = Vec(numOuts, Output(UInt(log2Ceil(numIns).W)))
-    val activate = Input(Bool( ))
+//    val activate = Input(Bool( ))
 
     val eopIn = Vec(numIns, Input(Bool( )))
 //    val lastIn = Vec(numIns, Input(Bool( )))
 
-    val lastOut = Vec(numOuts, Output(Bool( )))
+    val eopOut = Vec(numOuts, Output(Bool( )))
   })
 }
 
@@ -53,11 +53,11 @@ class Allocator(numIns: Int, numOuts: Int)(implicit p: Parameters)
   }
 
 
-  io.lastOut.foreach(a => a := false.B)
+  io.eopOut.foreach(a => a := false.B)
 
   when(isFinished.reduceLeft(_&&_)) {
     isFinished.foreach(a => a := false.B)
-    io.lastOut.foreach(a => a := true.B)
+    io.eopOut.foreach(a => a := true.B)
   }
 
   val active = Wire(Vec(numIns, Bool( )))
@@ -106,7 +106,7 @@ class Allocator(numIns: Int, numOuts: Int)(implicit p: Parameters)
   for (i <- 0 until numIns) {
     io.in(i).ready := readyMux(i).io.output.data && readyMux(i).io.output.valid
     demux(i).io.input := io.in(i).bits
-    demux(i).io.en := io.in(i).valid && io.activate// && (quotient(i) === minQuotient)
+    demux(i).io.en := io.in(i).valid //&& io.activate// && (quotient(i) === minQuotient)
     readyMux(i).io.en := demux(i).io.en
     demux(i).io.sel := io.in(i).bits.row % numOuts.U
     readyMux(i).io.sel := io.in(i).bits.row % numOuts.U

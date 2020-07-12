@@ -53,7 +53,7 @@ class OuterDotIO(memTensorType: String = "none")(implicit val p: Parameters)
 }
 
 class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
-(memTensorType: String = "none", maxRowLen: Int, maxColLen: Int)
+(memTensorType: String = "none", maxRowLen: Int)
 (segShape: => L)(implicit p: Parameters)
   extends OuterDotIO(memTensorType)(p) {
 

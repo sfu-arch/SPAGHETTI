@@ -12,7 +12,7 @@ import shell._
   *
   */
 
-class SpMM_IO(numSegments: Int, numColMerger: Int)(implicit val p: Parameters)
+class SpMM_IO(numSegments: Int, numSorter: Int)(implicit val p: Parameters)
   extends Module {
 
   val mp = p(ShellKey).memParams
@@ -28,9 +28,9 @@ class SpMM_IO(numSegments: Int, numColMerger: Int)(implicit val p: Parameters)
     val val_B_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
     val ptr_B_BaseAddr = Vec(numSegments, Input(UInt(mp.addrBits.W)))
 
-    val outBaseAddr_row = Vec(numColMerger, Input(UInt(mp.addrBits.W)))
-    val outBaseAddr_col = Vec(numColMerger, Input(UInt(mp.addrBits.W)))
-    val outBaseAddr_val = Vec(numColMerger, Input(UInt(mp.addrBits.W)))
+    val outBaseAddr_row = Vec(numSorter, Input(UInt(mp.addrBits.W)))
+    val outBaseAddr_col = Vec(numSorter, Input(UInt(mp.addrBits.W)))
+    val outBaseAddr_val = Vec(numSorter, Input(UInt(mp.addrBits.W)))
 
     val nnz_A = Vec(numSegments, Input(UInt(mp.addrBits.W)))
     val nnz_B = Vec(numSegments, Input(UInt(mp.addrBits.W)))
@@ -40,31 +40,26 @@ class SpMM_IO(numSegments: Int, numColMerger: Int)(implicit val p: Parameters)
     val vme_rd_ind = Vec(2 * numSegments, new VMEReadMaster)
     val vme_rd_val = Vec(2 * numSegments, new VMEReadMaster)
 
-    val vme_wr_row = Vec(numColMerger, new VMEWriteMaster)
-    val vme_wr_col = Vec(numColMerger, new VMEWriteMaster)
-    val vme_wr_val = Vec(numColMerger, new VMEWriteMaster)
+    val vme_wr_row = Vec(numSorter, new VMEWriteMaster)
+    val vme_wr_col = Vec(numSorter, new VMEWriteMaster)
+    val vme_wr_val = Vec(numSorter, new VMEWriteMaster)
 
     val multiplicationDone = Output(Bool ( ))
     val inStreamingDone = Output(Bool ( ))
 
 
-    val outDMA_len = Vec(numColMerger, Output(UInt(mp.addrBits.W)))
+    val outDMA_len = Vec(numSorter, Output(UInt(mp.addrBits.W)))
   })
 }
 
 class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : OperatorCooSCAL]
-(numSegments: Int, numReducer: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)
+(numSegments: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int)
 (segShape: => L)(implicit p: Parameters)
-  extends SpMM_IO(numSegments, numReducer)(p) {
+  extends SpMM_IO(numSegments, numSorter)(p) {
 
   val seg = for (i <- 0 until numSegments) yield {
-    val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(segShape))
+    val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen)(segShape))
     outDot
-  }
-
-  val sorter = for (i <- 0 until numSegments) yield {
-    val sortNode = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
-    sortNode
   }
 
   val VC = for (i <- 0 until numSegments) yield {
@@ -72,18 +67,22 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     channel
   }
 
-  val arbiter = Module(new Allocator(numIns = numSegments * numVC, numOuts = numReducer))
+  val allocator = Module(new Allocator(numIns = numSegments * numVC, numOuts = numSorter))
 
-  val reducer = for (i <- 0 until numReducer) yield {
+  val sorter = for (i <- 0 until numSorter) yield {
+    val sortNode = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
+    sortNode
+  }
+
+  val reducer = for (i <- 0 until numSorter) yield {
     val adder = Module(new Adder(ID = 1)(segShape))
     adder
   }
 
-  val outDMA = for (i <- 0 until numReducer) yield {
+  val outDMA = for (i <- 0 until numSorter) yield {
     val outD = Module(new outDMA_coo(bufSize = 20, memTensorType = "out"))
     outD
   }
-
 
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
@@ -112,43 +111,51 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     io.vme_rd_val(2 * i + 0) <> seg(i).io.vme_rd_val(0)
     io.vme_rd_val(2 * i + 1) <> seg(i).io.vme_rd_val(1)
 
-    sorter(i).io.in <> seg(i).io.out
-    sorter(i).io.eopIn := seg(i).io.eop
-//    sorter(i).io.lastIn := seg(i).io.lastOut
+    VC(i).io.in <> seg(i).io.out
+    VC(i).io.eopIn := seg(i).io.eop
 
-    VC(i).io.in <> sorter(i).io.out
-    VC(i).io.eopIn := sorter(i).io.eopOut
+
+//    sorter(i).io.in <> seg(i).io.out
+//    sorter(i).io.eopIn := seg(i).io.eop
+
+//    VC(i).io.in <> sorter(i).io.out
+//    VC(i).io.eopIn := sorter(i).io.eopOut
 
 //    arbiter.io.in(i) <> row_merger(i).io.out
 //    arbiter.io.eopIn(i) := row_merger(i).io.eopOut
   }
 
-  val isFinished = for (i <- 0 until numSegments) yield {
+  /*val isFinished = for (i <- 0 until numSegments) yield {
     val eop = RegInit(init = false.B)
     eop
   }
   when(isFinished.reduceLeft(_&&_) && !VC.map(_.io.out.map(_.valid).reduceLeft(_||_)).reduceLeft(_||_)) {
     isFinished.foreach(a => a := false.B)
   }
+
   for (i <- 0 until numSegments) {
     when (sorter(i).io.eopOut) {isFinished(i) := true.B}
-  }
+  }*/
 
-  val active = Wire(Vec(numSegments, Bool( )))
-  for (i <- 0 until numSegments) {
-    active(i) := isFinished(i) || sorter(i).io.out.valid
-  }
+//  val active = Wire(Vec(numSegments, Bool( )))
+//  for (i <- 0 until numSegments) {
+//    active(i) := isFinished(i) || sorter(i).io.out.valid
+//  }
 
-  arbiter.io.activate := active.reduceLeft(_&&_)
+//  allocator.io.activate := active.reduceLeft(_&&_)
 
   for (i <- 0 until numSegments) {
     for (j <- 0 until numVC) {
-      arbiter.io.in(i * numVC + j) <> VC(i).io.out(j)
-      arbiter.io.eopIn(i * numVC + j) := VC(i).io.eopOut(j)
+      allocator.io.in(i * numVC + j) <> VC(i).io.out(j)
+      allocator.io.eopIn(i * numVC + j) := VC(i).io.eopOut(j)
     }
   }
 
-  for (i <- 0 until numReducer) {
+  for (i <- 0 until numSorter) {
+    sorter(i).io.in <> allocator.io.out(i)
+    sorter(i).io.eopIn := allocator.io.eopOut(i)
+    sorter(i).io.lastIn := allocator.io.eopOut(i)
+
     io.outDMA_len(i) := outDMA(i).io.outLen
 
     io.vme_wr_row(i) <> outDMA(i).io.vme_wr_row
@@ -159,9 +166,9 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     outDMA(i).io.baddr_col := io.outBaseAddr_col(i)
     outDMA(i).io.baddr_val := io.outBaseAddr_val(i)
 
-    reducer(i).io.in <> arbiter.io.out(i)
+    reducer(i).io.in <> sorter(i).io.out
+    reducer(i).io.eopIn := sorter(i).io.eopOut
 
-    reducer(i).io.eopIn := arbiter.io.lastOut(i)
     outDMA(i).io.in <> reducer(i).io.out
     outDMA(i).io.last := reducer(i).io.eopOut
   }
@@ -169,12 +176,12 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   /* ================================================================== *
     *                  last signal of Col_mergers                       *
     * ================================================================== */
-  val last = for (i <- 0 until numReducer) yield {
+  val last = for (i <- 0 until numSorter) yield {
     val lastReg = RegInit(init = false.B)
     lastReg
   }
 
-  for (i <- 0 until numReducer) yield{
+  for (i <- 0 until numSorter) yield{
     when (reducer(i).io.eopOut) {
       last(i) := true.B
     }
@@ -205,7 +212,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   /* ================================================================== *
     *         outDot -> row_merger -> col_merger -> outDMA              *
     * ================================================================== */
-  val doneR = for (i <- 0 until numReducer) yield {
+  val doneR = for (i <- 0 until numSorter) yield {
     val doneReg = RegInit(init = false.B)
     doneReg
   }
@@ -215,7 +222,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     doneR.foreach(a => a := false.B)
   }
 
-  for (i <- 0 until numReducer) yield{
+  for (i <- 0 until numSorter) yield{
     when (outDMA(i).io.done) {
       doneR(i) := true.B
     }

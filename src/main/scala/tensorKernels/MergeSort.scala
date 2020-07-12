@@ -10,10 +10,12 @@ import shell.VMECmd
 
 class MergeSortIO(maxStreamLen: Int)(implicit val p: Parameters) extends Module {
   val io = IO(new Bundle {
+    val lastIn = Input(Bool( ))
     val eopIn = Input(Bool( ))
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
     val eopOut = Output(Bool( ))
+    val lastOut = Output(Bool( ))
   })
 }
 
@@ -32,7 +34,7 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
    *                Connections                    *
    *===============================================*/
   merger(0).io.eopIn := io.eopIn
-  merger(0).io.lastIn := io.eopIn
+  merger(0).io.lastIn := io.lastIn
 
   val sel = RegInit(false.B)
 //  val sel =
@@ -72,4 +74,5 @@ class MergeSort(maxStreamLen: Int, ID: Int, rowBased: Boolean)(implicit p: Param
   merger(num_Merger - 1).io.out2.ready := false.B
 
   io.eopOut := merger(num_Merger - 1).io.eopOut
+  io.lastOut := merger(num_Merger - 1).io.lastOut
 }

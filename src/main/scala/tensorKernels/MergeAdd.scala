@@ -46,7 +46,7 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
   }
 
 
-//  merger.io.lastIn := merger.io.in.ready && lastR
+  merger.io.lastIn := merger.io.in.ready && lastR
   merger.io.eopIn := false.B
   when((io.in.bits.row =/= data.row && io.in.valid) || (merger.io.in.ready && lastR)) {
     merger.io.eopIn := true.B
@@ -56,7 +56,7 @@ class MergeAdd[L <: Shapes : OperatorNRSCAL](maxStreamLen: Int, ID: Int, rowBase
   merger.io.in.bits := data
   merger.io.in.valid := valid
 
-  adder.io.eopIn := merger.io.eopOut
+  adder.io.eopIn := merger.io.lastOut
 //  adder.io.eopIn := merger.io.eopOut
   adder.io.in <> merger.io.out
 

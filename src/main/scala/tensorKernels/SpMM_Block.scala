@@ -63,7 +63,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   extends SpMM_BlockIO(numSegments, numReducer)(p) {
 
   val seg = for (i <- 0 until numSegments) yield {
-    val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen, maxColLen = maxColLen)(segShape))
+    val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen)(segShape))
     outDot
   }
 
@@ -80,9 +80,9 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
   val arbiter = Module(new ModArbiter(numIns = numSegments * numVC, numOuts = numReducer))
 
   val reducer = for (i <- 0 until numReducer) yield {
-//    val colMerger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
-    val adder = Module(new Adder(ID = 1)(segShape))
-    adder
+    val colMerger = Module(new MergeAdd(maxStreamLen = maxColLen, ID = 1, rowBased = false)(segShape))
+//    val adder = Module(new Adder(ID = 1)(segShape))
+    colMerger
   }
 
   val outDMA = for (i <- 0 until numReducer) yield {
@@ -126,6 +126,7 @@ class SpMM_Block[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL 
 
     sorter(i).io.in <> seg(i).io.out
     sorter(i).io.eopIn := seg(i).io.eop
+    sorter(i).io.lastIn := seg(i).io.eop
 
     VC(i).io.in <> sorter(i).io.out
     VC(i).io.eopIn := sorter(i).io.eopOut
