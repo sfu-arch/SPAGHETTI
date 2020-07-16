@@ -79,11 +79,6 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   val state = RegInit(sIdle)
 
 
-//  val inDMA_time = Counter(100000000)
-//  val merge_time = Counter(2000)
-
-//  io.inDMA_time := inDMA_time.value
-//  io.merge_time := merge_time.value
 
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
@@ -171,13 +166,20 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   /* ================================================================== *
      *                       multiplier and st                          *
      * ================================================================== */
+  val colAisZero = Wire(Bool())
+  colAisZero := false.B
+  when(ptrST_A.io.out.bits === 0.U) {colAisZero := true.B}
+
+  val rowBisZero = Wire(Bool())
+  rowBisZero := false.B
+  when(ptrST_B.io.out.bits === 0.U) {rowBisZero := true.B}
 
   mul.io.scal.bits := shapeTransformer_B.io.out.bits
-  mul.io.scal.valid := shapeTransformer_B.io.out.valid && ptrST_B.io.out.valid
+  mul.io.scal.valid := shapeTransformer_B.io.out.valid && ptrST_B.io.out.valid && !rowBisZero
   shapeTransformer_B.io.out.ready := false.B
 
   mul.io.vec(0).bits := shapeTransformer_A.io.out.bits
-  mul.io.vec(0).valid := shapeTransformer_A.io.out.valid && ptrST_A.io.out.valid
+  mul.io.vec(0).valid := shapeTransformer_A.io.out.valid && ptrST_A.io.out.valid && !colAisZero
   shapeTransformer_A.io.out.ready := false.B
 
   io.out <> mul.io.out(0)
@@ -185,14 +187,6 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   /* ================================================================== *
     *                          State Machine                            *
     * ================================================================== */
-
-//  when(state === sIdle){
-//    inDMA_time.value := 0.U
-//    merge_time.value := 0.U
-//  }
-
-//  when(state === sInRead) {inDMA_time.inc()}
-//  when(state === sExec) {inDMA_time.inc()}
 
   val bCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
   val aCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
@@ -208,13 +202,6 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   io.eop := false.B
 //  io.lastOut := false.B
 
-  val colAisZero = Wire(Bool())
-  colAisZero := false.B
-  when(ptrST_A.io.out.bits === 0.U) {colAisZero := true.B}
-
-  val rowBisZero = Wire(Bool())
-  rowBisZero := false.B
-  when(ptrST_B.io.out.bits === 0.U) {rowBisZero := true.B}
 
   switch(state) {
     is(sIdle) {
@@ -224,13 +211,8 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
         state := sExec
       }
     }
-//    is(sInRead) {
-//      when(DMA_doneR_A.reduceLeft(_ && _)){
-//        state := sExec
-//      }
-//    }
-    is(sExec) {
 
+    is(sExec) {
       when(ptrST_A.io.out.valid && ptrST_B.io.out.valid) {
         when(mul.io.scal.ready && mul.io.vec(0).ready && !colAisZero && !rowBisZero) {
           bCnt.inc()

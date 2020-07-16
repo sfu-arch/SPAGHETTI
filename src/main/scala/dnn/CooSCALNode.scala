@@ -15,11 +15,20 @@ class CooSCALFU[L <: Shapes : OperatorCooSCAL](left: => L, lanes: Int, opCode: S
   })
 
 
-  val start = io.o.ready
+  val start = io.o.ready && io.a.valid && io.b.valid
   val FU    = OperatorCooSCAL.magic(io.a.bits, io.b.bits, start, lanes, opCode)
   io.o.bits := FU._1
   val latency = FU._2
-  io.o.valid := RegNext(io.a.valid && io.b.valid)
+  val valid = RegInit(false.B)
+  when(io.o.fire()){
+    valid := false.B
+  }
+
+  when(start){
+    valid := true.B
+  }
+
+  io.o.valid := valid
 }
 
 class CooSCALIO[L <: Shapes](left: => L)(implicit val p: Parameters) extends Module{
@@ -51,15 +60,6 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
   io.scal.ready := io.out.map(_.ready).reduceLeft(_&&_) && io.vec.map(_.valid).reduceLeft(_&&_)
   io.vec.map(_.ready).foreach(a => a := io.out.map(_.ready).reduceLeft(_&&_) && io.scal.valid)
 
-  val FU_valid = RegInit(false.B)
-
-  when(FU.io.o.fire()){
-    FU_valid := false.B
-  }
-  when(io.scal.valid && io.vec.map(_.valid).reduceLeft(_&&_)) {
-    FU_valid := true.B
-  }
-
 
   val row = for (i <- 0 until shape.getLength()) yield {
     val r = Reg(UInt(p(ROWLEN).W))
@@ -72,7 +72,7 @@ class CooSCALNode[L <: Shapes : OperatorCooSCAL](N: Int, ID: Int, opCode: String
 
   for (i <- 0 until shape.getLength()) {
     io.out(i).bits.data := FU.io.o.bits.asUInt()(p(XLEN) * (i + 1) - 1, p(XLEN) * i)
-    io.out(i).valid := FU_valid
+    io.out(i).valid := FU.io.o.valid
 
     when(io.out.map(_.ready).reduceLeft(_&&_)) {
       row(i) := io.vec(i).bits.row
