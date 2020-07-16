@@ -22,6 +22,8 @@ package dnn.memory
 import chisel3._
 import chisel3.util._
 import config._
+import dnnnode.StoreQueue
+import interfaces.CooDataBundle
 import shell._
 //import vta.util.config._
 import dnn.memory.ISA._
@@ -30,7 +32,7 @@ import dnn.memory.ISA._
   *
   * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
   */
-class StreamStore(tensorType: String = "none", debug: Boolean = false)(
+class StreamStore(tensorType: String = "none", bufSize: Int, debug: Boolean = false)(
     implicit p: Parameters)
     extends Module {
   val tp = new TensorParams(tensorType)
@@ -41,14 +43,16 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
     val inst = Input(UInt(INST_BITS.W))
     val baddr = Input(UInt(mp.addrBits.W))
     val vme_wr = new VMEWriteMaster
-    val tensor = new TensorClient(tensorType)
+//    val tensor = new TensorClient(tensorType)
+    val in = Flipped(Decoupled(UInt(p(XLEN).W)))
+    val last = Input(Bool( ))
   })
-  val tensorLength = tp.tensorLength
-  val tensorWidth = tp.tensorWidth
-  val tensorElemBits = tp.tensorElemBits
-  val memBlockBits = tp.memBlockBits
-  val memDepth = tp.memDepth
-  val numMemBlock = tp.numMemBlock
+  val tensorLength = tp.tensorLength       // 1
+  val tensorWidth = tp.tensorWidth        // 16
+  val tensorElemBits = tp.tensorElemBits  // XLEN = 32
+  val memBlockBits = tp.memBlockBits      //AXI bus width = 512
+  val memDepth = tp.memDepth              // 150000
+  val numMemBlock = tp.numMemBlock        // numMemBlock = (tensorWidth * tensorElemBits) / memBlockBits = 16 * 32 / 512 = 1
 
   val dec = io.inst.asTypeOf(new MemDecode)
   val waddr_cur = Reg(chiselTypeOf(io.vme_wr.cmd.bits.addr))
@@ -61,8 +65,8 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
   val xmax_bytes = ((1 << mp.lenBits) * mp.dataBits / 8).U
   val ycnt = Reg(chiselTypeOf(dec.ysize))
   val ysize = dec.ysize
-  val tag = Reg(UInt(8.W))
-  val set = Reg(UInt(8.W))
+//  val tag = Reg(UInt(8.W))
+//  val set = Reg(UInt(8.W))
 
   val sIdle :: sWriteCmd :: sWriteData :: sReadMem :: sWriteAck :: Nil = Enum(5)
   val state = RegInit(sIdle)
@@ -90,7 +94,7 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
       when(io.vme_wr.data.ready) {
         when(xcnt === xlen) {
           state := sWriteAck
-        }.elsewhen(tag === (numMemBlock - 1).U) {
+        }.otherwise {
           state := sReadMem
         }
       }
@@ -128,10 +132,17 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
   }
 
   // write-to-sram
-  val tensorFile = Seq.fill(tensorLength) {
+  val storeQueue = Module(new StoreQueue(UInt(p(XLEN).W), bufSize, tp.tensorWidth))
+
+  storeQueue.io.last := io.last
+  storeQueue.io.enq <> io.in
+
+  /*val tensorFile = Seq.fill(tensorLength) {
     SyncReadMem(memDepth, Vec(numMemBlock, UInt(memBlockBits.W)))
-  }
+  }*/
+
   val wdata_t = Wire(Vec(numMemBlock, UInt(memBlockBits.W)))
+  /*val wdata_t = Wire(Vec(numMemBlock, UInt(memBlockBits.W)))
   val no_mask = Wire(Vec(numMemBlock, Bool()))
 
   wdata_t := DontCare
@@ -144,7 +155,7 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
     when(io.tensor.wr.valid) {
       tensorFile(i).write(io.tensor.wr.bits.idx, inWrData, no_mask)
     }
-  }
+  }*/
 
   // read-from-sram
   val stride = state === sWriteAck &
@@ -159,18 +170,18 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
     ycnt := ycnt + 1.U
   }
 
-  when(state === sWriteCmd || tag === (numMemBlock - 1).U) {
+  /*when(state === sWriteCmd || tag === (numMemBlock - 1).U) {
     tag := 0.U
   }.elsewhen(io.vme_wr.data.fire()) {
     tag := tag + 1.U
-  }
+  }*/
 
-  when(
+  /*when(
     state === sWriteCmd || (set === (tensorLength - 1).U && tag === (numMemBlock - 1).U)) {
     set := 0.U
   }.elsewhen(io.vme_wr.data.fire() && tag === (numMemBlock - 1).U) {
     set := set + 1.U
-  }
+  }*/
 
   val raddr_cur = Reg(UInt(tp.memAddrBits.W))
   val raddr_nxt = Reg(UInt(tp.memAddrBits.W))
@@ -178,7 +189,8 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
     raddr_cur := dec.sram_offset
     raddr_nxt := dec.sram_offset
   }.elsewhen(io.vme_wr.data
-      .fire() && set === (tensorLength - 1).U && tag === (numMemBlock - 1).U) {
+//      .fire() && set === (tensorLength - 1).U && tag === (numMemBlock - 1).U) {
+      .fire()) {
       raddr_cur := raddr_cur + 1.U
     }
     .elsewhen(stride) {
@@ -186,11 +198,13 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
       raddr_nxt := raddr_nxt + dec.xsize
     }
 
-  val tread = Seq.tabulate(tensorLength) { i =>
+  /*val tread = Seq.tabulate(tensorLength) { i =>
     i.U ->
       tensorFile(i).read(raddr_cur, state === sWriteCmd | state === sReadMem)
-  }
-  val mdata = MuxLookup(set, 0.U.asTypeOf(chiselTypeOf(wdata_t)), tread)
+  }*/
+
+//  val mdata = MuxLookup(set, 0.U.asTypeOf(chiselTypeOf(wdata_t)), tread)
+//  val mdata = MuxLookup(set, 0.U.asTypeOf(chiselTypeOf(wdata_t)), storeQueue.io.deq.bits)
 
   // write-to-dram
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
@@ -215,7 +229,8 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
   io.vme_wr.cmd.bits.len := xlen
 
   io.vme_wr.data.valid := state === sWriteData
-  io.vme_wr.data.bits := mdata(tag)
+//  io.vme_wr.data.bits := mdata(tag)
+  io.vme_wr.data.bits := storeQueue.io.deq.bits
 
   when(state === sWriteCmd) {
     xcnt := 0.U
@@ -224,7 +239,7 @@ class StreamStore(tensorType: String = "none", debug: Boolean = false)(
   }
 
   // disable external read-from-sram requests
-  io.tensor.tieoffRead()
+//  io.tensor.tieoffRead()
 
   // done
   io.done := state === sWriteAck & io.vme_wr.ack & xrem === 0.U & ycnt === ysize - 1.U
