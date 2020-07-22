@@ -55,7 +55,11 @@ class outStream_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Pa
   val pushCnt = Counter(math.pow(2, p(XLEN)).toInt)
   val length = RegInit(init = 0.U)
   val sendingState = RegInit(false.B)
-  val start = RegNext(io.last)
+//  val start = RegNext(io.last)
+
+  val start_row = RegInit(false.B)
+  val start_col = RegInit(false.B)
+  val start_val = RegInit(false.B)
 
   when(io.in.fire()){
     pushCnt.inc()
@@ -77,11 +81,39 @@ class outStream_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Pa
     sendingState := true.B
   }
 
-  val ts_Inst = Wire(new MemDecode)
+  val ts_Inst_row = Wire(new MemDecode)
+  val ts_Inst_col = Wire(new MemDecode)
+  val ts_Inst_val = Wire(new MemDecode)
+
   val memTensorRows = Mux(length % tp.tensorWidth.U === 0.U, length / tp.tensorWidth.U, (length /tp.tensorWidth.U) + 1.U)
 
   when (popCnt_row.value === memTensorRows && length > 0.U){
     popCnt_row.value := 0.U
+
+  }
+  val doneR = for (i <- 0 until 3) yield {
+    val doneReg = RegInit(init = false.B)
+    doneReg
+  }
+
+  val outBulkSize = 4.U
+
+  when(popCnt_row.value === outBulkSize) {
+    start_row := true.B
+    doneR(0) := false.B
+    ts_Inst_row.xsize := outBulkSize
+    ts_Inst_row.xstride := outBulkSize
+  }.elsewhen ((popCnt_row.value % outBulkSize) === 0.U & doneR(0)){
+    start_row := true.B
+    doneR(0) := false.B
+    ts_Inst_row.xsize := outBulkSize
+    ts_Inst_row.xstride := outBulkSize
+  }
+
+
+
+  when(doneR(0)) {
+    ts_Inst_row.sram_offset := ts_Inst_row.sram_offset + outBulkSize
 
   }
 
@@ -123,32 +155,30 @@ class outStream_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Pa
   tensorStore_val.io.tensor.rd <> DontCare
 
 
-  tensorStore_row.io.start := start
+  tensorStore_row.io.start := start_row
   tensorStore_row.io.baddr := io.baddr_row
-  tensorStore_row.io.inst := ts_Inst.asTypeOf(UInt(INST_BITS.W))
+  tensorStore_row.io.inst := ts_Inst_row.asTypeOf(UInt(INST_BITS.W))
 
-  tensorStore_col.io.start := start
+  tensorStore_col.io.start := start_col
   tensorStore_col.io.baddr := io.baddr_col
-  tensorStore_col.io.inst := ts_Inst.asTypeOf(UInt(INST_BITS.W))
+  tensorStore_col.io.inst := ts_Inst_row.asTypeOf(UInt(INST_BITS.W))
 
-  tensorStore_val.io.start := start
+  tensorStore_val.io.start := start_val
   tensorStore_val.io.baddr := io.baddr_val
-  tensorStore_val.io.inst := ts_Inst.asTypeOf(UInt(INST_BITS.W))
+  tensorStore_val.io.inst := ts_Inst_row.asTypeOf(UInt(INST_BITS.W))
 
   io.vme_wr_row <> tensorStore_row.io.vme_wr
   io.vme_wr_col <> tensorStore_col.io.vme_wr
   io.vme_wr_val <> tensorStore_val.io.vme_wr
 
-  val doneR = for (i <- 0 until 3) yield {
-    val doneReg = RegInit(init = false.B)
-    doneReg
-  }
 
-  io.done := doneR.reduceLeft(_ && _)
-  when (doneR.reduceLeft(_ && _)) {
+
+//  io.done := doneR.reduceLeft(_ && _)
+
+  /*when (doneR.reduceLeft(_ && _)) {
     doneR.foreach(a => a := false.B)
     sendingState := false.B
-  }
+  }*/
 
 
   io.outLen := length
@@ -157,20 +187,20 @@ class outStream_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Pa
   when (tensorStore_col.io.done) {doneR(1) := true.B}
   when (tensorStore_val.io.done) {doneR(2) := true.B}
 
-  ts_Inst.xpad_0 := 0.U
-  ts_Inst.xpad_1 := 0.U
-  ts_Inst.ypad_0 := 0.U
-  ts_Inst.ypad_1 := 0.U
-  ts_Inst.xstride := memTensorRows
-  ts_Inst.xsize := memTensorRows
-  ts_Inst.ysize := 1.U
-  ts_Inst.empty_0 := 0.U
-  ts_Inst.dram_offset := 0.U
-  ts_Inst.sram_offset := 0.U
-  ts_Inst.id := 3.U
-  ts_Inst.push_next := 0.U
-  ts_Inst.push_prev := 0.U
-  ts_Inst.pop_next := 0.U
-  ts_Inst.pop_prev := 0.U
-  ts_Inst.op := 0.U
+  ts_Inst_row.xpad_0 := 0.U
+  ts_Inst_row.xpad_1 := 0.U
+  ts_Inst_row.ypad_0 := 0.U
+  ts_Inst_row.ypad_1 := 0.U
+  ts_Inst_row.xstride := memTensorRows
+  ts_Inst_row.xsize := memTensorRows
+  ts_Inst_row.ysize := 1.U
+  ts_Inst_row.empty_0 := 0.U
+  ts_Inst_row.dram_offset := 0.U
+  ts_Inst_row.sram_offset := 0.U
+  ts_Inst_row.id := 3.U
+  ts_Inst_row.push_next := 0.U
+  ts_Inst_row.push_prev := 0.U
+  ts_Inst_row.pop_next := 0.U
+  ts_Inst_row.pop_prev := 0.U
+  ts_Inst_row.op := 0.U
 }
