@@ -188,14 +188,14 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
     *                          State Machine                            *
     * ================================================================== */
 
-  val bCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
-  val aCnt = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
+  val bCnt = Counter(math.pow(2,p(XLEN)).toInt)
+  val aCnt = Counter(math.pow(2,p(XLEN)).toInt)
 
   shapeTransformer_B.io.idx := bCnt.value
   shapeTransformer_B.io.numDeq := ptrST_B.io.out.bits
 
-  val outCnt_a = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
-  val outCnt_b = Counter(math.pow(2,log2Ceil(maxRowLen)).toInt)
+  val outCnt_a = Counter(math.pow(2,p(XLEN)).toInt)
+  val outCnt_b = Counter(math.pow(2,p(XLEN)).toInt)
   when(ptrST_A.io.out.fire()){outCnt_a.inc()}
   when(ptrST_B.io.out.fire()){outCnt_b.inc()}
 
