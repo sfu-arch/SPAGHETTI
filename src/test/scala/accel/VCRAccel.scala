@@ -153,7 +153,7 @@ object TestAccelAWSMain extends App {
     case Array("--maxRowLen", argCtrl: String) => maxRowLen = argCtrl.toInt
     case Array("--maxColLen", argCtrl: String) => maxColLen = argCtrl.toInt
   }
-  implicit val p: Parameters = new DefaultAWSConfig(numSegment = 1, numSorter = 1)
+  implicit val p: Parameters = new DefaultAWSConfig(numSegment = numSegment, numSorter = numSorter)
   chisel3.Driver.execute(args.take(4), () => new F1Shell(numSegment = numSegment, numSorter = numSorter, numVC, VCDepth, maxRowLen, maxColLen))
 }
 

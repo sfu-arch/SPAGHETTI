@@ -40,6 +40,7 @@ class inStreamDMA(bufSize: Int, memTensorType: String = "none")(implicit p: Para
 
   io.done := strLoad.io.done
 
+  val popCnt = Counter(math.pow(2, p(XLEN)).toInt)
 //  val width =  p(ShellKey).memParams.dataBits / p(XLEN)
 
   val tl_Inst = Wire(new MemDecode)
@@ -69,5 +70,10 @@ class inStreamDMA(bufSize: Int, memTensorType: String = "none")(implicit p: Para
   strLoad.io.baddr := io.baddr
   io.out <> strLoad.io.out
   io.vme_rd <> strLoad.io.vme_rd
+
+  when(io.out.fire()) {popCnt.inc()}
+
+  io.out.valid := strLoad.io.out.valid && (popCnt.value < io.len)
+
 
 }
