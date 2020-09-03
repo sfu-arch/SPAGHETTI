@@ -1,4 +1,4 @@
-# TensorStrainers
+# SPAGHETTI
 
 Tensor-Brick is a Chisel-based generator of low-rank convolution accelerators. It includes a library of tensor-based linear-algebra operators, 
 streaming memory interfaces, and tensor-based buffers. This leads to a composable architecture specification that optimizes across multiple layers in a DNN.
