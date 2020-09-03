@@ -1,4 +1,4 @@
-name := "TensorStrainers"
+name := "SPAGHETTI"
 
 organization := "edu.sfu.arch"
 

@@ -58,8 +58,8 @@ class TestAccelAWS(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, ma
   // vta_shell.io.host <> sim_shell.host
 }
 
-class TensorStrainersSimAccel(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)
-                          (implicit val p: Parameters) extends MultiIOModule {
+class SpaghettiSimAccel(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)
+                       (implicit val p: Parameters) extends MultiIOModule {
   val sim_clock = IO(Input(Clock()))
   val sim_wait = IO(Output(Bool()))
   val sim_shell = Module(new AXISimShell)
@@ -102,7 +102,7 @@ class DefaultAWSConfig(numSegment: Int = 1, numSorter: Int = 1)
 
 
 
-object TensorStrainersSimAccelMain extends App {
+object SpaghettiSimAccelMain extends App {
   var numSegment = 1
   var numSorter = 1
   var numColMerger = 1
@@ -122,7 +122,7 @@ object TensorStrainersSimAccelMain extends App {
   }
 
   implicit val p: Parameters = new DefaultDe10Config(numSegment = numSegment, numSorter = numSorter)
-  chisel3.Driver.execute(args.take(4), () => new TensorStrainersSimAccel(numSegment = numSegment, numSorter = numSorter, numVC, VCDepth, maxRowLen, maxColLen))
+  chisel3.Driver.execute(args.take(4), () => new SpaghettiSimAccel(numSegment = numSegment, numSorter = numSorter, numVC, VCDepth, maxRowLen, maxColLen))
 }
 
 

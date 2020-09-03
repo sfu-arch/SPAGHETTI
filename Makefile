@@ -32,7 +32,7 @@ ifeq (, $(VERILATOR_INC_DIR))
   endif
 endif
 
-TOP = TensorStrainersSimAccel
+TOP = SpaghettiSimAccel
 BUILD_NAME = build
 USE_TRACE = 1
 LIBNAME = libhw
