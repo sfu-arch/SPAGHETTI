@@ -26,7 +26,7 @@ class SpTensorCore(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, ma
 //  val shape = new vecN(1, 0, false)
 
 //  val block = Module(new SpMM_Block(numSegments = numSegment, numReducer = numReducer, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen, maxColLen = maxColLen)(shape))
-  val block = Module(new SpMM(numSegments = numSegment, numSorter = numSorter, numVC = numVC, VCDepth = VCDepth, maxRowLen = maxRowLen)(shape))
+  val block = Module(new SpMM(numSegments = numSegment, numSorter = numSorter, numVC = numVC, VCDepth = VCDepth, sorterDepth = maxRowLen)(shape))
 
 //  val uram = Module(new UltraRAM())
 //  val queue = Module(new URAM_Queue(UInt(72.W), entries = 10, pipe = true))

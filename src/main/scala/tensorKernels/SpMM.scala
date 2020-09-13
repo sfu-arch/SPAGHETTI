@@ -53,12 +53,12 @@ class SpMM_IO(numSegments: Int, numSorter: Int)(implicit val p: Parameters)
 }
 
 class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : OperatorCooSCAL]
-(numSegments: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int)
+(numSegments: Int, numSorter: Int, numVC: Int, VCDepth: Int, sorterDepth: Int)
 (segShape: => L)(implicit p: Parameters)
   extends SpMM_IO(numSegments, numSorter)(p) {
 
   val seg = for (i <- 0 until numSegments) yield {
-    val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = maxRowLen)(segShape))
+    val outDot = Module(new OuterDot(memTensorType = "inp", maxRowLen = sorterDepth)(segShape))
     outDot
   }
 
@@ -70,7 +70,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   val allocator = Module(new Allocator(numIns = numSegments * numVC, numOuts = numSorter))
 
   val sorter = for (i <- 0 until numSorter) yield {
-    val sortNode = Module(new MergeSort(maxStreamLen = maxRowLen, ID = 1, rowBased = true))
+    val sortNode = Module(new MergeSort(maxStreamLen = sorterDepth, ID = 1, rowBased = true))
     sortNode
   }
 

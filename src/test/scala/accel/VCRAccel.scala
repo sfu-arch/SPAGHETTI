@@ -55,7 +55,6 @@ class TestAccelAWS(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, ma
   sim_shell.host.b <> vta_shell.io.host.b
   vta_shell.io.host.w <> sim_shell.host.w
 
-  // vta_shell.io.host <> sim_shell.host
 }
 
 class SpaghettiSimAccel(numSegment: Int, numSorter: Int, numVC: Int, VCDepth: Int, maxRowLen: Int, maxColLen: Int)
