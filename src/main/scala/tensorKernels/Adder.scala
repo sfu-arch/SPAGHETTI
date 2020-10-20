@@ -52,8 +52,11 @@ class Adder[L <: Shapes : OperatorNRSCAL](ID: Int)(shape: => L)(implicit p: Para
 
   FU.io.o.ready := true.B
 
-  dataValid := false.B
-  when(io.in.valid){
+  when(io.out.fire()){
+    dataValid := false.B
+  }
+  
+  when(io.in.valid && io.out.ready){
     dataValid := true.B
     when(data.row =/= io.in.bits.row || data.col =/= io.in.bits.col) {
       data <> io.in.bits

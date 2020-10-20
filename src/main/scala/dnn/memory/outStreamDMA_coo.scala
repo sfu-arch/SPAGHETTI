@@ -48,65 +48,95 @@ class outStreamDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p:
 
   val popCnt = Counter(math.pow(2, p(XLEN)).toInt)
   val pushCnt = Counter(math.pow(2, p(XLEN)).toInt)
+  val lenCnt = Counter(math.pow(2, p(XLEN)).toInt)
+  val roundCnt = Counter(math.pow(2, p(XLEN)).toInt)
+
   val length = RegInit(init = 0.U)
   val sendingState = RegInit(false.B)
-  val start = RegNext(io.last)
+  val last = RegInit(false.B)
+  val lastSending = RegInit(false.B)
+
+  when(io.last){
+    lastSending := true.B
+  }
+
+  when(lastSending && storeQueue.io.deq.fire()){
+    last := true.B
+
+  }
 
   when(storeQueue.io.enq.fire()){
+    lenCnt.inc()
     pushCnt.inc()
   }
   when (storeQueue.io.deq.fire()) {
     popCnt.inc()
   }
 
-
   when(io.last){
     length := pushCnt.value
+  }
+
+
+  val ts_Inst = Wire(new MemDecode)
+  val memTensorRows = Mux(last, popCnt.value, math.pow(2, mp.lenBits).toInt.asUInt()/tp.tensorWidth.U)
+
+
+  storeQueue.io.deq.ready := !sendingState
+
+  tensorStore_row.io.start := false.B
+  tensorStore_col.io.start := false.B
+  tensorStore_val.io.start := false.B
+
+  when(pushCnt.value === math.pow(2, mp.lenBits).toInt.asUInt() || last){
+
     pushCnt.value := 0.U
+
+  }
+
+
+  when (popCnt.value === memTensorRows || last) {
+    popCnt.value := 0.U
+    tensorStore_row.io.start := true.B
+    tensorStore_col.io.start := true.B
+    tensorStore_val.io.start := true.B
+    roundCnt.inc()
+
     sendingState := true.B
   }
 
-  val ts_Inst = Wire(new MemDecode)
-  val memTensorRows = Mux(length % tp.tensorWidth.U === 0.U, length / tp.tensorWidth.U, (length /tp.tensorWidth.U) + 1.U)
-
-
-  when (popCnt.value === memTensorRows && length > 0.U){
-    popCnt.value := 0.U
-
-  }
 
   storeQueue.io.last := io.last
   storeQueue.io.enq <> io.in
-  io.in.ready := storeQueue.io.enq.ready && !sendingState
+  io.in.ready := storeQueue.io.enq.ready
 
-  storeQueue.io.deq.ready := true.B
 
-  tensorStore_row.io.tensor.wr.valid := storeQueue.io.deq.valid
+  tensorStore_row.io.tensor.wr.valid := storeQueue.io.deq.valid && !sendingState
   tensorStore_row.io.tensor.wr.bits.data := VecInit(storeQueue.io.deq.bits.map(_.row.asUInt())).asTypeOf(tensorStore_row.io.tensor.wr.bits.data)
   tensorStore_row.io.tensor.wr.bits.idx := popCnt.value
   tensorStore_row.io.tensor.rd <> DontCare
 
-  tensorStore_col.io.tensor.wr.valid := storeQueue.io.deq.valid
+  tensorStore_col.io.tensor.wr.valid := storeQueue.io.deq.valid && !sendingState
   tensorStore_col.io.tensor.wr.bits.data := VecInit(storeQueue.io.deq.bits.map(_.col.asUInt())).asTypeOf(tensorStore_col.io.tensor.wr.bits.data)
   tensorStore_col.io.tensor.wr.bits.idx := popCnt.value
   tensorStore_col.io.tensor.rd <> DontCare
 
-  tensorStore_val.io.tensor.wr.valid := storeQueue.io.deq.valid
+  tensorStore_val.io.tensor.wr.valid := storeQueue.io.deq.valid && !sendingState
   tensorStore_val.io.tensor.wr.bits.data := VecInit(storeQueue.io.deq.bits.map(_.data.asUInt())).asTypeOf(tensorStore_val.io.tensor.wr.bits.data)
   tensorStore_val.io.tensor.wr.bits.idx := popCnt.value
   tensorStore_val.io.tensor.rd <> DontCare
 
 
-  tensorStore_row.io.start := start
-  tensorStore_row.io.baddr := io.baddr_row
+//  tensorStore_row.io.start := start
+  tensorStore_row.io.baddr := io.baddr_row + (roundCnt.value * tp.tensorWidth.U * tp.tensorWidth.U * 4.U)
   tensorStore_row.io.inst := ts_Inst.asTypeOf(UInt(INST_BITS.W))
 
-  tensorStore_col.io.start := start
-  tensorStore_col.io.baddr := io.baddr_col
+//  tensorStore_col.io.start := start
+  tensorStore_col.io.baddr := io.baddr_col + (roundCnt.value * tp.tensorWidth.U * tp.tensorWidth.U * 4.U)
   tensorStore_col.io.inst := ts_Inst.asTypeOf(UInt(INST_BITS.W))
 
-  tensorStore_val.io.start := start
-  tensorStore_val.io.baddr := io.baddr_val
+//  tensorStore_val.io.start := start
+  tensorStore_val.io.baddr := io.baddr_val + (roundCnt.value * tp.tensorWidth.U * tp.tensorWidth.U * 4.U)
   tensorStore_val.io.inst := ts_Inst.asTypeOf(UInt(INST_BITS.W))
 
   io.vme_wr_row <> tensorStore_row.io.vme_wr
@@ -118,14 +148,15 @@ class outStreamDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p:
     doneReg
   }
 
-  io.done := doneR.reduceLeft(_ && _)
+  io.done := doneR.reduceLeft(_ && _) && lastSending
   when (doneR.reduceLeft(_ && _)) {
     doneR.foreach(a => a := false.B)
     sendingState := false.B
+    lastSending := false.B
   }
 
 
-  io.outLen := length
+  io.outLen := lenCnt.value
 
   when (tensorStore_row.io.done) {doneR(0) := true.B}
   when (tensorStore_col.io.done) {doneR(1) := true.B}
