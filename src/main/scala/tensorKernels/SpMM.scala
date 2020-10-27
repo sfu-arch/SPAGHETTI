@@ -85,6 +85,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     outD
   }
 
+  
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
     * ================================================================== */
