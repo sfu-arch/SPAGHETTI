@@ -52,7 +52,7 @@ import tensorKernels.URAM_Queue
 
  */
 
-class DNNCoreTest(implicit p: Parameters) extends Module {
+class CoreTest(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
     val vme = new VMEMaster
