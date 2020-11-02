@@ -1,6 +1,7 @@
 package tensorKernels
 
 import chisel3._
+import chisel3.util.Counter
 import config._
 import dnn.memory._
 import dnn.types.{OperatorCooSCAL, OperatorDot, OperatorNRSCAL, OperatorReduction}
@@ -80,12 +81,11 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   }
 
   val outDMA = for (i <- 0 until numSorter) yield {
-    val outD = Module(new outStreamDMA_cooNew(bufSize = 20, memTensorType = "out"))
+    val outD = Module(new outStreamDMA_coo(bufSize = 5000, NumIns = 1))
 //    val outD = Module(new outDMA_coo(bufSize = 20, memTensorType = "out"))
     outD
   }
 
-  
   /* ================================================================== *
     *                      inDMA_acts & loadNodes                       *
     * ================================================================== */
@@ -153,6 +153,9 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     }
   }
 
+  val outDMA_busy = outDMA.map(_.io.vme_wr_busy).reduceLeft(_||_)
+
+
   for (i <- 0 until numSorter) {
     sorter(i).io.in <> allocator.io.out(i)
     sorter(i).io.eopIn := allocator.io.eopOut(i)
@@ -163,6 +166,10 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
     io.vme_wr_row(i) <> outDMA(i).io.vme_wr_row
     io.vme_wr_col(i) <> outDMA(i).io.vme_wr_col
     io.vme_wr_val(i) <> outDMA(i).io.vme_wr_val
+
+    io.vme_wr_row(i).cmd.valid := outDMA(i).io.vme_wr_row.cmd.valid && (!outDMA_busy || outDMA(i).io.vme_wr_busy)
+    io.vme_wr_col(i).cmd.valid := outDMA(i).io.vme_wr_col.cmd.valid && (!outDMA_busy || outDMA(i).io.vme_wr_busy)
+    io.vme_wr_val(i).cmd.valid := outDMA(i).io.vme_wr_val.cmd.valid && (!outDMA_busy || outDMA(i).io.vme_wr_busy)
 
     outDMA(i).io.baddr_row := io.outBaseAddr_row(i)
     outDMA(i).io.baddr_col := io.outBaseAddr_col(i)
@@ -178,6 +185,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   /* ================================================================== *
     *                  last signal of Col_mergers                       *
     * ================================================================== */
+
   val last = for (i <- 0 until numSorter) yield {
     val lastReg = RegInit(init = false.B)
     lastReg

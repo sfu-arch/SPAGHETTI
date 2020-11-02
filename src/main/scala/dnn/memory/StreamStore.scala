@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.util._
 import config._
 import dnn.memory.ISA._
-import dnnnode.StoreQueue
+import dnnnode.{StoreMIMOQueue, StoreQueue}
 import interfaces.CooDataBundle
 import shell._
 
@@ -18,9 +18,8 @@ import shell._
   * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
   * handling the way tensors are stored on the scratchpads.
   */
-class StreamStore_IO(memTensorType: String = "none")(implicit val p: Parameters)
+class StreamStore_IO(NumIns: Int)(implicit val p: Parameters)
   extends Module {
-  val tp = new TensorParams(memTensorType)
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -28,26 +27,28 @@ class StreamStore_IO(memTensorType: String = "none")(implicit val p: Parameters)
     val done = Output(Bool())
     val baddr = Input(UInt(mp.addrBits.W))
     val vme_wr = new VMEWriteMaster
-    val in = Flipped(Decoupled(UInt(p(XLEN).W)))
+    val in = Flipped(Decoupled(Vec(NumIns, UInt(p(XLEN).W))))
     val outLen = Output(UInt(mp.addrBits.W))
   })
 }
 
-class StreamStore(bufSize: Int, memTensorType: String = "none")(implicit p: Parameters)
-  extends StreamStore_IO(memTensorType)(p) {
-  require(bufSize > math.pow(2, mp.lenBits).toInt * tp.tensorWidth, "buffer size should be greater than the tensorFile width")
+class StreamStore(bufSize: Int, NumIns: Int)(implicit p: Parameters)
+  extends StreamStore_IO(NumIns)(p) {
+  require(bufSize > math.pow(2, mp.lenBits).toInt * mp.dataBits / p(XLEN), "buffer size should be greater than the tensorFile width")
+  require(mp.dataBits % p(XLEN) == 0, "AXI bus width should be a multiple of XLEN")
 
-  val storeQueue = Module(new StoreQueue(UInt(p(XLEN).W), bufSize, tp.tensorWidth))
+  val bus_width = mp.dataBits / p(XLEN)
 
-//  val popCnt = Counter(math.pow(2, p(XLEN)).toInt)
+  val storeQueue = Module(new StoreMIMOQueue(UInt(p(XLEN).W), bufSize, NumIns, bus_width))
+
   val pushCnt = Counter(math.pow(2, p(XLEN)).toInt)
-
-//  val sendCnt = Counter(math.pow(2, p(XLEN)).toInt)
-
   val last = RegInit(false.B)
 
   val addr = Reg(chiselTypeOf(io.vme_wr.cmd.bits.addr))
   val len = Reg(chiselTypeOf(io.vme_wr.cmd.bits.len))
+
+  val addr_hop = RegInit((math.pow(2, mp.lenBits).toInt * bus_width * p(XLEN)/8).U(mp.addrBits.W))
+
 
   when(io.last){
     last := true.B
@@ -78,11 +79,11 @@ class StreamStore(bufSize: Int, memTensorType: String = "none")(implicit p: Para
       }
     }
     is(sLoading){
-      when(storeQueue.io.count >= (math.pow(2, mp.lenBits).toInt * tp.tensorWidth).asUInt()){
+      when(storeQueue.io.count >= (math.pow(2, mp.lenBits).toInt * bus_width).asUInt()){
         len := math.pow(2, mp.lenBits).toInt.asUInt() - 1.U
         state := sSendReq
       }.elsewhen(last){
-        len := Mux (storeQueue.io.count % tp.tensorWidth.U === 0.U, storeQueue.io.count/tp.tensorWidth.U - 1.U, storeQueue.io.count/tp.tensorWidth.U)
+        len := Mux (storeQueue.io.count % bus_width.U === 0.U, storeQueue.io.count/bus_width.U - 1.U, storeQueue.io.count/bus_width.U)
         state := sLastReq
       }
     }
@@ -93,6 +94,7 @@ class StreamStore(bufSize: Int, memTensorType: String = "none")(implicit p: Para
     }
     is(sBusy){
       when(io.vme_wr.ack){
+        addr := addr + addr_hop
         state := sLoading
       }
     }
@@ -104,6 +106,7 @@ class StreamStore(bufSize: Int, memTensorType: String = "none")(implicit p: Para
     is(sLastSending){
       when(io.vme_wr.ack){
         io.done := true.B
+//        addr := addr + ((len + 1.U) * tp.tensorWidth.U * p(XLEN).U/8.U)
         last := false.B
         state := sIdle
       }
@@ -115,7 +118,8 @@ class StreamStore(bufSize: Int, memTensorType: String = "none")(implicit p: Para
   }
 
   storeQueue.io.last := io.last
-  storeQueue.io.enq <> io.in
+  storeQueue.io.enq.bits := io.in.bits.asTypeOf(storeQueue.io.enq.bits)
+  storeQueue.io.enq.valid := io.in.valid
   io.in.ready := storeQueue.io.enq.ready && !last
 
   io.vme_wr.data.bits := storeQueue.io.deq.bits.asUInt()

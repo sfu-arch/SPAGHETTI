@@ -30,6 +30,7 @@ class outDMA_cooIO(memTensorType: String = "none")(implicit val p: Parameters)
     val vme_wr_row = new VMEWriteMaster
     val vme_wr_col = new VMEWriteMaster
     val vme_wr_val = new VMEWriteMaster
+    val vme_wr_busy = Output(Bool())
     val in = Flipped(Decoupled(new CooDataBundle(UInt(p(XLEN).W))))
     val last = Input(Bool())
     val outLen = Output(UInt(mp.addrBits.W))
@@ -51,6 +52,8 @@ class outDMA_coo(bufSize: Int, memTensorType: String = "none")(implicit p: Param
   val length = RegInit(init = 0.U)
   val sendingState = RegInit(false.B)
   val start = RegNext(io.last)
+
+  io.vme_wr_busy := false.B /* just to have same IO as outStreamDMA*/
 
   when(storeQueue.io.enq.fire()){
     pushCnt.inc()
