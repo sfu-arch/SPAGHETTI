@@ -81,7 +81,7 @@ class SpMM[L <: Shapes : OperatorDot : OperatorReduction : OperatorNRSCAL : Oper
   }
 
   val outDMA = for (i <- 0 until numSorter) yield {
-    val outD = Module(new outStreamDMA_coo(bufSize = 5000, NumIns = 1))
+    val outD = Module(new outStreamDMA_coo(bufSize = 512, NumIns = 1))
 //    val outD = Module(new outDMA_coo(bufSize = 20, memTensorType = "out"))
     outD
   }
