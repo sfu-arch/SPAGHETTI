@@ -69,6 +69,7 @@ class MIMOQueue[T <: Data](gen: T,
   val do_enq = WireDefault(io.enq.fire())
   val do_deq = WireDefault(io.deq.fire())
 
+
   when(io.clear) {
     enq_ptr := 0.U
     deq_ptr := 0.U
@@ -125,7 +126,7 @@ class MIMOQueue[T <: Data](gen: T,
   }
 
   if (isPow2(entries)) {
-    io.count := Mux(maybe_full && ptr_match, entries.U, 0.U) | ptr_diff
+    io.count := Mux(maybe_full && ptr_match, entries.U, 0.U) | (ptr_diff & (entries-1).U)
   } else {
     io.count := Mux(ptr_match,
       Mux(maybe_full,

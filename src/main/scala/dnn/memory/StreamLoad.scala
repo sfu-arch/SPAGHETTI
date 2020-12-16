@@ -35,7 +35,7 @@ class StreamLoad(bufSize: Int, tensorType: String = "none", debug: Boolean = fal
 
 //  val memBlockBits = mp.dataBits
 //  val width =  memBlockBits / p(XLEN)
-  require(bufSize > math.pow(2, mp.lenBits) * tp.tensorWidth, "bufSize should be greater than size of each stream chunk")
+  require(bufSize >= math.pow(2, mp.lenBits) * tp.tensorWidth, "bufSize should be greater than size of each stream chunk")
 
 
 //  val sizeFactor = 1 //width / width
@@ -100,7 +100,7 @@ class StreamLoad(bufSize: Int, tensorType: String = "none", debug: Boolean = fal
   reqSize := (dataCtrl.io.len * tp.tensorWidth.U) + tp.tensorWidth.U
   val check = Wire(Bool ())
   check := false.B
-  when(reqSize < (bufSize.U - queue.io.count)) {
+  when(reqSize <= (bufSize.U - queue.io.count)) {
     check := true.B
   }
 

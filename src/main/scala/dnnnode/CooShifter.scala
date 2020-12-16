@@ -32,9 +32,6 @@ class CooShifterIO(bufSize: Int, memTensorType: String = "none")(implicit val p:
     val ind = Flipped(Decoupled(UInt(p(ROWLEN).W)))
     val value = Flipped(Decoupled(UInt(p(XLEN).W)))
 
-//    val indTensor = new TensorMaster(memTensorType)
-//    val valTensor = new TensorMaster(memTensorType)
-
     val out = Decoupled(new CooDataBundle(UInt(p(XLEN).W)))
   })
 }
