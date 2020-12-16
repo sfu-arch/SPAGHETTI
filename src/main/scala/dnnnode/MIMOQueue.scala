@@ -7,10 +7,8 @@ import chisel3.{Flipped, Module, UInt, _}
 class MIMOQueueIO[T <: Data](private val gen: T, val entries: Int, NumIns: Int, NumOuts: Int) extends Bundle
 {
   /** I/O to enqueue data (client is producer, and Queue object is consumer), is [[Chisel.DecoupledIO]] flipped. */
-//  val enq = Flipped(EnqIO(gen))
   val enq = Flipped(EnqIO(Vec(NumIns, gen)))
   /** I/O to dequeue data (client is consumer and Queue object is producer), is [[Chisel.DecoupledIO]]*/
-//  val deq = Flipped(DeqIO(gen))
   val deq = Flipped(DeqIO(Vec(NumOuts, gen)))
   /** The current amount of data in the queue */
   val count = Output(UInt(log2Ceil(entries + 1).W))
@@ -39,10 +37,9 @@ class MIMOQueue[T <: Data](gen: T,
                            flow: Boolean = false)
                           (implicit compileOptions: chisel3.CompileOptions)
   extends Module() {
-  require(entries > -1, "Queue must have non-negative number of entries")
-  require(entries != 0, "Use companion object Queue.apply for zero entries")
-//  require(entries % NumIns == 0, "Use companion object Queue.apply for zero entries")
-//  require(entries % NumOuts == 0, "Use companion object Queue.apply for zero entries")
+  require(entries > 0, "Queue must have non-negative number of entries")
+  require(isPow2(entries), "Queue depth must be a power of 2")
+
   val genType = if (compileOptions.declaredTypeMustBeUnbound) {
     requireIsChiselType(gen)
     gen
@@ -57,12 +54,14 @@ class MIMOQueue[T <: Data](gen: T,
   val io = IO(new MIMOQueueIO(genType, entries, NumIns, NumOuts))
 
   val ram = Mem(entries, genType)
-  val enq_ptr = RegInit(0.U((log2Ceil(entries)+1).W)) //Counter(entries)
-  val deq_ptr = RegInit(0.U((log2Ceil(entries)+1).W)) //Counter(entries)
+//  val enq_ptr = RegInit(0.U((log2Ceil(entries)+1).W)) //Counter(entries)
+  val enq_ptr = Counter(entries)
+//  val deq_ptr = RegInit(0.U((log2Ceil(entries)+1).W))
+  val deq_ptr = Counter(entries)
   val maybe_full = RegInit(false.B)
 
   val bufCount = io.count
-  val ptr_match = enq_ptr === deq_ptr
+  val ptr_match = enq_ptr.value === deq_ptr.value
   val empty = ptr_match && !maybe_full
 //  val full = ptr_match && maybe_full
   val full = entries.U - bufCount < NumIns.U
@@ -71,23 +70,25 @@ class MIMOQueue[T <: Data](gen: T,
 
 
   when(io.clear) {
-    enq_ptr := 0.U
-    deq_ptr := 0.U
+    enq_ptr.value := 0.U
+    deq_ptr.value := 0.U
   }
 
   when (do_enq) {
     for (i <- 0 until NumIns) {
-      ram((enq_ptr + i.U) % entries.U) := io.enq.bits(i)
+      ram(enq_ptr.value + i.U) := io.enq.bits(i)
     }
-    enq_ptr := (enq_ptr + NumIns.U) % entries.U
+//    enq_ptr := (enq_ptr + NumIns.U) % entries.U
+    enq_ptr.value := enq_ptr.value + NumIns.U
     when (io.clear) {
-      enq_ptr := 0.U
+      enq_ptr.value := 0.U
     }
   }
   when (do_deq) {
-    deq_ptr := (deq_ptr + NumOuts.U) % entries.U
+//    deq_ptr := (deq_ptr + NumOuts.U) % entries.U
+    deq_ptr.value := deq_ptr.value + NumOuts.U
     when (io.clear) {
-      deq_ptr := 0.U
+      deq_ptr.value := 0.U
     }
   }
   when (do_enq =/= do_deq) {
@@ -99,7 +100,7 @@ class MIMOQueue[T <: Data](gen: T,
 //  io.deq.bits := ram(deq_ptr.value)
 
 
-  val ptr_diff = enq_ptr - deq_ptr
+  val ptr_diff = enq_ptr.value - deq_ptr.value
 
 
 //  io.Out.valid := !empty //(ptr_diff >= 0.U)
@@ -109,7 +110,8 @@ class MIMOQueue[T <: Data](gen: T,
     io.deq.valid := false.B
   }
   for (i <- 0 until NumOuts) {
-    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram((deq_ptr + i.U) % entries.U), 0.U.asTypeOf(genType))
+//    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram((deq_ptr + i.U) % entries.U), 0.U.asTypeOf(genType))
+    io.deq.bits(i) := Mux(bufCount > (NumOuts - 1).U, ram(deq_ptr.value + i.U), 0.U.asTypeOf(genType))
   }
 
   if (flow) {
@@ -126,12 +128,13 @@ class MIMOQueue[T <: Data](gen: T,
   }
 
   if (isPow2(entries)) {
-    io.count := Mux(maybe_full && ptr_match, entries.U, 0.U) | (ptr_diff & (entries-1).U)
+//    io.count := Mux(maybe_full && ptr_match, entries.U, ptr_diff & (entries-1).U)
+    io.count := Mux(maybe_full && ptr_match, entries.U, ptr_diff)
   } else {
     io.count := Mux(ptr_match,
       Mux(maybe_full,
         entries.asUInt, 0.U),
-      Mux(deq_ptr > enq_ptr,
+      Mux(deq_ptr.value > enq_ptr.value,
         entries.asUInt + ptr_diff, ptr_diff))
   }
 }
