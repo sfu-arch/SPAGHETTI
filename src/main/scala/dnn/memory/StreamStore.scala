@@ -79,7 +79,7 @@ class StreamStore(bufSize: Int, NumIns: Int)(implicit p: Parameters)
       }
     }
     is(sLoading){
-      when(storeQueue.io.count >= (math.pow(2, mp.lenBits).toInt * bus_width).asUInt()){
+      when(storeQueue.io.count > (math.pow(2, mp.lenBits).toInt * bus_width).asUInt()){
         len := math.pow(2, mp.lenBits).toInt.asUInt() - 1.U
         state := sSendReq
       }.elsewhen(last){
