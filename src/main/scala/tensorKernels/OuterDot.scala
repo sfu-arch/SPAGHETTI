@@ -202,7 +202,6 @@ class OuterDot[L <: Shapes : OperatorDot : OperatorReduction : OperatorCooSCAL]
   io.eop := false.B
 //  io.lastOut := false.B
 
-
   switch(state) {
     is(sIdle) {
       when(io.start) {
